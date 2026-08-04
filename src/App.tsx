@@ -1,13 +1,28 @@
 import React, { useState } from 'react';
-import { BarChart3, Building, Plus, Settings, User } from 'lucide-react';
+import { BarChart3, Building, LogOut, Plus, Settings, User } from 'lucide-react';
 import { Dashboard } from './components/Dashboard';
 import { Projects } from './components/Projects';
 import { AddExpense } from './components/AddExpense';
 import { Settings as SettingsComponent } from './components/Settings';
+import { Auth } from './components/Auth';
+import { useAuth } from './hooks/useAuth';
 import { TabType } from './types';
 
 function App() {
+  const { session, loading, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <p className="text-gray-400 text-sm">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Auth />;
+  }
 
   const tabs = [
     { id: 'dashboard', name: 'Dashboard', icon: BarChart3, component: Dashboard },
@@ -37,6 +52,13 @@ function App() {
             <div className="w-8 h-8 lg:w-10 lg:h-10 bg-yellow-500 rounded-full flex items-center justify-center">
               <User className="h-5 w-5 text-black" />
             </div>
+            <button
+              onClick={() => signOut()}
+              className="text-gray-400 hover:text-white transition-colors p-1"
+              title="Sign out"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
           </div>
         </div>
       </header>

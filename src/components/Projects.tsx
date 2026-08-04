@@ -1,17 +1,105 @@
 import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, Calendar, DollarSign, Building, AlertCircle, Eye, ArrowLeft, Download, FileSpreadsheet } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, DollarSign, Building, AlertCircle, Eye, ArrowLeft, Download, FileSpreadsheet, Users, X, Mail } from 'lucide-react';
 import { useProjects } from '../hooks/useProjects';
 import { useExpenses } from '../hooks/useExpenses';
+import { useProjectMembers } from '../hooks/useProjectMembers';
+import { useAuth } from '../hooks/useAuth';
 import { Project } from '../types';
 import { PROJECT_STATUSES, EXPENSE_CATEGORIES } from '../utils/constants';
 import * as XLSX from 'xlsx';
 
+const TeamModal: React.FC<{ project: Project; onClose: () => void }> = ({ project, onClose }) => {
+  const { members, addMember, removeMember } = useProjectMembers(project.id);
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await addMember(email);
+      setEmail('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not add that email.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+      <div className="bg-gray-800 rounded-lg p-4 lg:p-6 max-w-md w-full border border-gray-700 my-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-base lg:text-lg font-semibold text-white">Team - {project.name}</h3>
+            <p className="text-xs text-gray-400">Anyone added here can sign in and add expenses to this project.</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        <form onSubmit={handleAdd} className="flex gap-2 mb-4">
+          <div className="relative flex-1">
+            <Mail className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="teammate@example.com"
+              className="w-full pl-9 pr-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg font-medium transition-colors text-sm whitespace-nowrap disabled:opacity-50"
+          >
+            Add
+          </button>
+        </form>
+
+        {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+
+        <div className="space-y-2">
+          {members.length === 0 && (
+            <p className="text-gray-400 text-sm text-center py-4">No team members yet. Add one by email above.</p>
+          )}
+          {members.map((member) => (
+            <div key={member.id} className="flex items-center justify-between bg-gray-700 rounded-lg px-3 py-2">
+              <div>
+                <p className="text-white text-sm">{member.email}</p>
+                <p className="text-xs text-gray-400">
+                  {member.userId ? 'Active - has signed in' : 'Pending - waiting for them to sign up'}
+                </p>
+              </div>
+              <button
+                onClick={() => removeMember(member.id)}
+                className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                title="Remove"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const Projects: React.FC = () => {
+  const { user } = useAuth();
   const { projects, addProject, updateProject, deleteProject } = useProjects();
   const { expenses, deleteExpense } = useExpenses();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [viewingProjectExpenses, setViewingProjectExpenses] = useState<string | null>(null);
+  const [managingTeamFor, setManagingTeamFor] = useState<Project | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -385,7 +473,7 @@ export const Projects: React.FC = () => {
                       </div>
                       <h4 className="text-white font-medium mb-1 text-sm lg:text-base">{expense.description}</h4>
                       <p className="text-gray-400 text-xs lg:text-sm">
-                        Added on {new Date(expense.createdAt).toLocaleDateString()}
+                        Added by {expense.userName || 'a team member'} on {new Date(expense.createdAt).toLocaleDateString()}
                       </p>
                     </div>
                     <div className="text-right flex-shrink-0">
@@ -571,12 +659,23 @@ export const Projects: React.FC = () => {
                   </span>
                 </div>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => handleEdit(project)}
-                    className="text-gray-400 hover:text-yellow-500 transition-colors"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </button>
+                  {project.ownerId === user?.id && (
+                    <>
+                      <button
+                        onClick={() => setManagingTeamFor(project)}
+                        className="text-gray-400 hover:text-yellow-500 transition-colors"
+                        title="Manage Team"
+                      >
+                        <Users className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleEdit(project)}
+                        className="text-gray-400 hover:text-yellow-500 transition-colors"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                    </>
+                  )}
                   <button
                     onClick={() => setViewingProjectExpenses(project.id)}
                     className="text-gray-400 hover:text-blue-500 transition-colors"
@@ -584,12 +683,14 @@ export const Projects: React.FC = () => {
                   >
                     <Eye className="h-4 w-4" />
                   </button>
-                  <button
-                    onClick={() => handleDelete(project)}
-                    className="text-gray-400 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  {project.ownerId === user?.id && (
+                    <button
+                      onClick={() => handleDelete(project)}
+                      className="text-gray-400 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -651,7 +752,10 @@ export const Projects: React.FC = () => {
           </button>
         </div>
       )}
+
+      {managingTeamFor && (
+        <TeamModal project={managingTeamFor} onClose={() => setManagingTeamFor(null)} />
+      )}
     </div>
   );
-  setViewingProjectExpenses(null);
 };

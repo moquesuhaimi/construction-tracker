@@ -1,36 +1,71 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { User } from '../types';
-import { storageUtils } from '../utils/storage';
+import { supabase } from '../lib/supabase';
+import { useAuth } from './useAuth';
+
+type ProfileRow = {
+  id: string;
+  name: string;
+  email: string;
+  company: string;
+  role: string;
+  profile_image: string | null;
+};
+
+const fromRow = (row: ProfileRow): User => ({
+  id: row.id,
+  name: row.name,
+  email: row.email,
+  company: row.company,
+  role: row.role,
+  profileImage: row.profile_image ?? undefined,
+});
 
 export const useUser = () => {
+  const { user: authUser } = useAuth();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const savedUser = storageUtils.getUser();
-    if (savedUser) {
-      setUser(savedUser);
-    } else {
-      // Set default user if none exists
-      const defaultUser: User = {
-        id: '1',
-        name: 'John Doe',
-        email: 'john@example.com',
-        company: 'Construction Co.',
-        role: 'Project Manager',
-      };
-      setUser(defaultUser);
-      storageUtils.saveUser(defaultUser);
+  const fetchProfile = useCallback(async () => {
+    if (!authUser) {
+      setUser(null);
+      setLoading(false);
+      return;
     }
-    setLoading(false);
-  }, []);
 
-  const updateUser = (updates: Partial<User>) => {
-    if (user) {
-      const updatedUser = { ...user, ...updates };
-      setUser(updatedUser);
-      storageUtils.saveUser(updatedUser);
+    setLoading(true);
+
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', authUser.id).single();
+
+    if (error || !data) {
+      console.error('Failed to load profile', error);
+      setLoading(false);
+      return;
     }
+
+    setUser(fromRow(data as ProfileRow));
+    setLoading(false);
+  }, [authUser]);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  const updateUser = async (updates: Partial<User>) => {
+    if (!authUser) return;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        ...(updates.name !== undefined && { name: updates.name }),
+        ...(updates.company !== undefined && { company: updates.company }),
+        ...(updates.role !== undefined && { role: updates.role }),
+        ...(updates.profileImage !== undefined && { profile_image: updates.profileImage || null }),
+      })
+      .eq('id', authUser.id);
+
+    if (error) throw error;
+    await fetchProfile();
   };
 
   return {

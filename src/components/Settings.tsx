@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { User, Save, Trash2, Download, Upload, Camera, X } from 'lucide-react';
-import { storageUtils } from '../utils/storage';
+import { User, Save, LogOut, Camera, Upload, X } from 'lucide-react';
 import { useUser } from '../hooks/useUser';
+import { useAuth } from '../hooks/useAuth';
 import { User as UserType } from '../types';
 
 export const Settings: React.FC = () => {
   const { user, updateUser } = useUser();
+  const { signOut } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<UserType>(user || {
     id: '1',
@@ -31,53 +32,6 @@ export const Settings: React.FC = () => {
   const handleCancel = () => {
     setFormData(user || formData);
     setIsEditing(false);
-  };
-
-  const handleExportData = () => {
-    const data = {
-      projects: storageUtils.getProjects(),
-      expenses: storageUtils.getExpenses(),
-      user: storageUtils.getUser(),
-      exportDate: new Date().toISOString(),
-    };
-
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `construction-expenses-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = JSON.parse(e.target?.result as string);
-        
-        if (data.projects) storageUtils.saveProjects(data.projects);
-        if (data.expenses) storageUtils.saveExpenses(data.expenses);
-        if (data.user) storageUtils.saveUser(data.user);
-        
-        alert('Data imported successfully! Please refresh the page.');
-      } catch (error) {
-        alert('Error importing data. Please check the file format.');
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const handleClearData = () => {
-    if (window.confirm('Are you sure you want to clear all data? This cannot be undone.')) {
-      storageUtils.clearAll();
-      alert('All data has been cleared. Please refresh the page.');
-    }
   };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -211,10 +165,10 @@ export const Settings: React.FC = () => {
             <input
               type="email"
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              disabled={!isEditing}
+              disabled
               className="w-full px-3 py-2 lg:py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 disabled:opacity-50 text-sm lg:text-base"
             />
+            <p className="text-xs text-gray-500 mt-1">This is your login email and can't be changed here.</p>
           </div>
 
           <div>
@@ -300,44 +254,19 @@ export const Settings: React.FC = () => {
           </div>
         </div>
       )}
-      {/* Data Management */}
+      {/* Account */}
       <div className="bg-gray-800 rounded-lg p-4 lg:p-6 border border-gray-700">
-        <h3 className="text-base lg:text-lg font-semibold text-white mb-4">Data Management</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button
-            onClick={handleExportData}
-            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-medium transition-colors text-sm lg:text-base"
-          >
-            <Download className="h-4 w-4" />
-            Export Data
-          </button>
-
-          <label className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-medium transition-colors cursor-pointer text-sm lg:text-base">
-            <Upload className="h-4 w-4" />
-            Import Data
-            <input
-              type="file"
-              accept=".json"
-              onChange={handleImportData}
-              className="hidden"
-            />
-          </label>
-
-          <button
-            onClick={handleClearData}
-            className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg font-medium transition-colors text-sm lg:text-base"
-          >
-            <Trash2 className="h-4 w-4" />
-            Clear All Data
-          </button>
-        </div>
-
-        <div className="mt-4 text-xs lg:text-sm text-gray-400">
-          <p>• Export your data to backup all projects and expenses</p>
-          <p>• Import data from a previously exported file</p>
-          <p>• Clear all data will permanently delete all information</p>
-        </div>
+        <h3 className="text-base lg:text-lg font-semibold text-white mb-4">Account</h3>
+        <button
+          onClick={() => signOut()}
+          className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg font-medium transition-colors text-sm lg:text-base"
+        >
+          <LogOut className="h-4 w-4" />
+          Sign Out
+        </button>
+        <p className="mt-3 text-xs lg:text-sm text-gray-400">
+          Your projects and expenses are stored in the cloud and stay available whenever you sign back in, on any device.
+        </p>
       </div>
 
       {/* App Information */}
@@ -359,7 +288,7 @@ export const Settings: React.FC = () => {
           </div>
           <div className="flex justify-between">
             <span className="text-gray-400">Data Storage</span>
-            <span className="text-white">Local Storage</span>
+            <span className="text-white">Supabase (Cloud)</span>
           </div>
         </div>
       </div>

@@ -1,5 +1,6 @@
 export interface Project {
   id: string;
+  ownerId: string;
   name: string;
   description: string;
   totalBudget: number;
@@ -10,9 +11,19 @@ export interface Project {
   createdAt: string;
 }
 
+export interface ProjectMember {
+  id: string;
+  projectId: string;
+  email: string;
+  userId: string | null;
+  addedAt: string;
+}
+
 export interface Expense {
   id: string;
   projectId: string;
+  userId: string;
+  userName?: string;
   category: string;
   description: string;
   amount: number;
