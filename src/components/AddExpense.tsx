@@ -256,7 +256,7 @@ export const AddExpense: React.FC = () => {
               </div>
 
               {/* Petty cash balance indicator */}
-              {formData.projectId && myFloatGiven > 0 && (
+              {formData.projectId && thisAmount > 0 && (
                 <div
                   className={`rounded-lg p-3 border text-sm ${
                     myBalanceAfterThis < 0
@@ -264,15 +264,24 @@ export const AddExpense: React.FC = () => {
                       : 'bg-yellow-500 bg-opacity-10 border-yellow-500 text-yellow-500'
                   }`}
                 >
-                  <p className="flex items-center gap-2 font-medium">
-                    <Wallet className="h-4 w-4" />
-                    Your petty cash for this project: ${myBalanceBeforeThis.toLocaleString()} remaining
-                  </p>
-                  {thisAmount > 0 && myBalanceAfterThis < 0 && (
-                    <p className="mt-1 text-xs">
-                      This expense is ${Math.abs(myBalanceAfterThis).toLocaleString()} more than the float you were
-                      given. That extra amount will be recorded as paid from your own pocket, so the project will owe
-                      it back to you - the owner can see this under Cash Flow.
+                  {myBalanceAfterThis < 0 ? (
+                    <>
+                      <p className="flex items-center gap-2 font-medium">
+                        <Wallet className="h-4 w-4" />
+                        {myFloatGiven > 0
+                          ? `This is $${Math.abs(myBalanceAfterThis).toLocaleString()} more than the petty cash you were given`
+                          : `You haven't been given any petty cash for this project yet`}
+                      </p>
+                      <p className="mt-1 text-xs">
+                        That ${Math.abs(myBalanceAfterThis).toLocaleString()} will be recorded as paid from your own
+                        pocket - the project will owe it back to you. The owner can see this under Cash Flow.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="flex items-center gap-2 font-medium">
+                      <Wallet className="h-4 w-4" />
+                      After this, you'll still have ${myBalanceAfterThis.toLocaleString()} of petty cash left for this
+                      project
                     </p>
                   )}
                 </div>
