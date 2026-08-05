@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, Calendar, DollarSign, Building, AlertCircle, Eye, ArrowLeft, Download, FileSpreadsheet, Users, X, Mail } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, DollarSign, Building, AlertCircle, Eye, ArrowLeft, Download, FileSpreadsheet, Users, X, Mail, Wallet } from 'lucide-react';
 import { useProjects } from '../hooks/useProjects';
 import { useExpenses } from '../hooks/useExpenses';
 import { useProjectMembers } from '../hooks/useProjectMembers';
+import { useCashAdvances } from '../hooks/useCashAdvances';
 import { useAuth } from '../hooks/useAuth';
-import { Project } from '../types';
+import { Project, Expense } from '../types';
 import { PROJECT_STATUSES, EXPENSE_CATEGORIES } from '../utils/constants';
 import * as XLSX from 'xlsx';
 
@@ -92,6 +93,110 @@ const TeamModal: React.FC<{ project: Project; onClose: () => void }> = ({ projec
   );
 };
 
+const CashFlowModal: React.FC<{ project: Project; expenses: Expense[]; onClose: () => void }> = ({
+  project,
+  expenses,
+  onClose,
+}) => {
+  const { members } = useProjectMembers(project.id);
+  const { advances, deleteAdvance } = useCashAdvances(project.id);
+
+  const activeMembers = members.filter((m) => m.userId);
+
+  const projectExpenses = expenses.filter((e) => e.projectId === project.id);
+
+  const balances = activeMembers.map((member) => {
+    const given = advances
+      .filter((a) => a.recipientId === member.userId)
+      .reduce((sum, a) => sum + a.amount, 0);
+    const spent = projectExpenses
+      .filter((e) => e.userId === member.userId)
+      .reduce((sum, e) => sum + e.amount, 0);
+    return { member, given, spent, balance: given - spent };
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+      <div className="bg-gray-800 rounded-lg p-4 lg:p-6 max-w-2xl w-full border border-gray-700 my-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-base lg:text-lg font-semibold text-white">Cash Flow - {project.name}</h3>
+            <p className="text-xs text-gray-400">
+              Petty cash given, spent, and outstanding per team member. To give cash, use "Give Petty Cash" on the Add Expense screen.
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        {/* Balances */}
+        <div className="space-y-2 mb-6">
+          {activeMembers.length === 0 && (
+            <p className="text-gray-400 text-sm text-center py-4">
+              No active team members yet. Add someone in "Manage Team" first, and wait for them to sign up.
+            </p>
+          )}
+          {balances.map(({ member, given, spent, balance }) => (
+            <div key={member.id} className="bg-gray-700 rounded-lg px-3 py-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-white text-sm font-medium">{member.email}</p>
+                <span
+                  className={`text-sm font-semibold ${
+                    balance > 0 ? 'text-yellow-500' : balance < 0 ? 'text-red-500' : 'text-green-500'
+                  }`}
+                >
+                  {balance > 0
+                    ? `Holding $${balance.toLocaleString()}`
+                    : balance < 0
+                    ? `Owed $${Math.abs(balance).toLocaleString()}`
+                    : 'Settled'}
+                </span>
+              </div>
+              <div className="flex gap-4 text-xs text-gray-400">
+                <span>Given: ${given.toLocaleString()}</span>
+                <span>Spent: ${spent.toLocaleString()}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* History */}
+        {advances.length > 0 && (
+          <div className="border-t border-gray-700 pt-4">
+            <p className="text-sm font-medium text-gray-300 mb-2">Advance History</p>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {advances.map((advance) => {
+                const member = members.find((m) => m.userId === advance.recipientId);
+                return (
+                  <div key={advance.id} className="flex items-center justify-between text-sm bg-gray-700 rounded-lg px-3 py-2">
+                    <div>
+                      <p className="text-white">
+                        ${advance.amount.toLocaleString()} to {member?.email || 'a team member'}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {new Date(advance.date).toLocaleDateString()}
+                        {advance.notes ? ` - ${advance.notes}` : ''}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => deleteAdvance(advance.id)}
+                      className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const Projects: React.FC = () => {
   const { user } = useAuth();
   const { projects, addProject, updateProject, deleteProject } = useProjects();
@@ -100,6 +205,7 @@ export const Projects: React.FC = () => {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [viewingProjectExpenses, setViewingProjectExpenses] = useState<string | null>(null);
   const [managingTeamFor, setManagingTeamFor] = useState<Project | null>(null);
+  const [managingCashFor, setManagingCashFor] = useState<Project | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -669,6 +775,13 @@ export const Projects: React.FC = () => {
                         <Users className="h-4 w-4" />
                       </button>
                       <button
+                        onClick={() => setManagingCashFor(project)}
+                        className="text-gray-400 hover:text-yellow-500 transition-colors"
+                        title="Cash Flow"
+                      >
+                        <Wallet className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => handleEdit(project)}
                         className="text-gray-400 hover:text-yellow-500 transition-colors"
                       >
@@ -755,6 +868,10 @@ export const Projects: React.FC = () => {
 
       {managingTeamFor && (
         <TeamModal project={managingTeamFor} onClose={() => setManagingTeamFor(null)} />
+      )}
+
+      {managingCashFor && (
+        <CashFlowModal project={managingCashFor} expenses={expenses} onClose={() => setManagingCashFor(null)} />
       )}
     </div>
   );

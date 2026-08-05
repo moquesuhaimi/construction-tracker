@@ -151,7 +151,7 @@ create policy "Only the owner can remove team members"
 create table if not exists public.expenses (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references public.projects (id) on delete cascade,
-  user_id uuid not null references auth.users (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
   category text not null,
   description text not null,
   amount numeric not null,
@@ -183,8 +183,52 @@ create policy "Delete your own expenses, or any expense if you own the project"
   to authenticated
   using (user_id = auth.uid() or public.is_project_owner(project_id));
 
--- 5. Helpful indexes ---------------------------------------------------------
+-- 5. Cash advances (petty cash / float given to a team member) ------------
+-- These are NOT expenses. They track money handed to someone so they can
+-- buy things for the project. The actual purchase they make gets logged as
+-- a normal expense; the advance just lets the owner see how much float is
+-- still outstanding with that person.
+create table if not exists public.cash_advances (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects (id) on delete cascade,
+  recipient_id uuid not null references public.profiles (id) on delete cascade,
+  given_by uuid not null references public.profiles (id) on delete cascade,
+  amount numeric not null,
+  date date not null default current_date,
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.cash_advances enable row level security;
+
+create policy "Owner and recipient can see cash advances"
+  on public.cash_advances for select
+  to authenticated
+  using (
+    public.is_project_owner(project_id) or recipient_id = auth.uid()
+  );
+
+create policy "Only the owner can record cash advances"
+  on public.cash_advances for insert
+  to authenticated
+  with check (public.is_project_owner(project_id) and given_by = auth.uid());
+
+create policy "Only the owner can edit cash advances"
+  on public.cash_advances for update
+  to authenticated
+  using (public.is_project_owner(project_id));
+
+create policy "Only the owner can delete cash advances"
+  on public.cash_advances for delete
+  to authenticated
+  using (public.is_project_owner(project_id));
+
+-- 6. Helpful indexes ---------------------------------------------------------
 create index if not exists idx_expenses_project_id on public.expenses (project_id);
 create index if not exists idx_expenses_user_id on public.expenses (user_id);
 create index if not exists idx_project_members_project_id on public.project_members (project_id);
 create index if not exists idx_project_members_email on public.project_members (email);
+create index if not exists idx_cash_advances_project_id on public.cash_advances (project_id);
+create index if not exists idx_cash_advances_recipient_id on public.cash_advances (recipient_id);
+
+notify pgrst, 'reload schema';

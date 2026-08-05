@@ -19,6 +19,18 @@ export interface ProjectMember {
   addedAt: string;
 }
 
+export interface CashAdvance {
+  id: string;
+  projectId: string;
+  recipientId: string;
+  recipientName?: string;
+  givenBy: string;
+  amount: number;
+  date: string;
+  notes?: string;
+  createdAt: string;
+}
+
 export interface Expense {
   id: string;
   projectId: string;
