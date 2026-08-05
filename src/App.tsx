@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
-import { BarChart3, Building, LogOut, Plus, Settings, User } from 'lucide-react';
+import { BarChart3, Building, LogOut, Plus, Settings, User, Wallet, X } from 'lucide-react';
 import { Dashboard } from './components/Dashboard';
 import { Projects } from './components/Projects';
 import { AddExpense } from './components/AddExpense';
 import { Settings as SettingsComponent } from './components/Settings';
 import { Auth } from './components/Auth';
 import { useAuth } from './hooks/useAuth';
+import { useCashAdvanceNotifications } from './hooks/useCashAdvanceNotifications';
 import { TabType } from './types';
 
 function App() {
   const { session, loading, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+  const { notifications, markAsRead } = useCashAdvanceNotifications();
 
   if (loading) {
     return (
@@ -62,6 +64,38 @@ function App() {
           </div>
         </div>
       </header>
+
+      {/* Petty cash notifications */}
+      {notifications.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 pt-4 space-y-2">
+          {notifications.map((n) => (
+            <div
+              key={n.id}
+              className="flex items-start justify-between gap-3 bg-yellow-500 bg-opacity-10 border border-yellow-500 rounded-lg px-4 py-3"
+            >
+              <div className="flex items-start gap-3">
+                <Wallet className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm text-white font-medium">
+                    You received ${n.amount.toLocaleString()} petty cash for {n.projectName}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {new Date(n.date).toLocaleDateString()}
+                    {n.notes ? ` - ${n.notes}` : ''}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => markAsRead(n.id)}
+                className="text-gray-400 hover:text-white transition-colors p-1 flex-shrink-0"
+                title="Dismiss"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto flex relative">
         {/* Desktop Sidebar */}

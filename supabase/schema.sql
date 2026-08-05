@@ -223,7 +223,37 @@ create policy "Only the owner can delete cash advances"
   to authenticated
   using (public.is_project_owner(project_id));
 
--- 6. Helpful indexes ---------------------------------------------------------
+-- 6. Cash advance "read" tracking (for in-app notifications) ---------------
+-- A separate table so the recipient can mark an advance as seen without
+-- needing update rights on the advance ledger itself.
+create table if not exists public.cash_advance_reads (
+  advance_id uuid primary key references public.cash_advances (id) on delete cascade,
+  read_at timestamptz not null default now()
+);
+
+alter table public.cash_advance_reads enable row level security;
+
+create policy "Recipient can mark their own advance as read"
+  on public.cash_advance_reads for insert
+  to authenticated
+  with check (
+    exists (
+      select 1 from public.cash_advances a
+      where a.id = advance_id and a.recipient_id = auth.uid()
+    )
+  );
+
+create policy "Recipient and owner can see read status"
+  on public.cash_advance_reads for select
+  to authenticated
+  using (
+    exists (
+      select 1 from public.cash_advances a
+      where a.id = advance_id and (a.recipient_id = auth.uid() or public.is_project_owner(a.project_id))
+    )
+  );
+
+-- 7. Helpful indexes ---------------------------------------------------------
 create index if not exists idx_expenses_project_id on public.expenses (project_id);
 create index if not exists idx_expenses_user_id on public.expenses (user_id);
 create index if not exists idx_project_members_project_id on public.project_members (project_id);
