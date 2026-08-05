@@ -12,7 +12,7 @@ type Mode = 'expense' | 'petty-cash';
 
 export const AddExpense: React.FC = () => {
   const { user } = useAuth();
-  const { addExpense } = useExpenses();
+  const { addExpense, expenses } = useExpenses();
   const { projects } = useProjects();
   const [mode, setMode] = useState<Mode>('expense');
 
@@ -42,6 +42,20 @@ export const AddExpense: React.FC = () => {
 
   const pettyProject = projects.find((p) => p.id === pettyProjectId);
   const canGivePettyCash = pettyProject && user && pettyProject.ownerId === user.id;
+
+  // Live petty cash balance for the "Log Expense" form, for the person currently logging it
+  const { advances: myAdvances } = useCashAdvances(formData.projectId || null);
+  const myFloatGiven = user
+    ? myAdvances.filter((a) => a.recipientId === user.id).reduce((sum, a) => sum + a.amount, 0)
+    : 0;
+  const mySpentSoFar = user
+    ? expenses
+        .filter((e) => e.projectId === formData.projectId && e.userId === user.id)
+        .reduce((sum, e) => sum + e.amount, 0)
+    : 0;
+  const myBalanceBeforeThis = myFloatGiven - mySpentSoFar;
+  const thisAmount = parseFloat(formData.amount) || 0;
+  const myBalanceAfterThis = myBalanceBeforeThis - thisAmount;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,7 +118,7 @@ export const AddExpense: React.FC = () => {
       setPettyNotes('');
       setPettyDate(new Date().toISOString().split('T')[0]);
 
-      alert('Cash advance recorded! This will not count as a project expense until the team member logs what they actually spend it on.');
+      alert('Cash advance recorded. This float will not be counted as a project expense - only what the team member actually spends and logs will show up as an expense.');
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Error recording cash advance. Please try again.');
     } finally {
@@ -240,6 +254,29 @@ export const AddExpense: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {/* Petty cash balance indicator */}
+              {formData.projectId && myFloatGiven > 0 && (
+                <div
+                  className={`rounded-lg p-3 border text-sm ${
+                    myBalanceAfterThis < 0
+                      ? 'bg-red-500 bg-opacity-10 border-red-500 text-red-400'
+                      : 'bg-yellow-500 bg-opacity-10 border-yellow-500 text-yellow-500'
+                  }`}
+                >
+                  <p className="flex items-center gap-2 font-medium">
+                    <Wallet className="h-4 w-4" />
+                    Your petty cash for this project: ${myBalanceBeforeThis.toLocaleString()} remaining
+                  </p>
+                  {thisAmount > 0 && myBalanceAfterThis < 0 && (
+                    <p className="mt-1 text-xs">
+                      This expense is ${Math.abs(myBalanceAfterThis).toLocaleString()} more than the float you were
+                      given. That extra amount will be recorded as paid from your own pocket, so the project will owe
+                      it back to you - the owner can see this under Cash Flow.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Description */}
               <div>
@@ -399,7 +436,7 @@ export const AddExpense: React.FC = () => {
                       <option value="">Select team member</option>
                       {pettyActiveMembers.map((m) => (
                         <option key={m.id} value={m.userId ?? ''}>
-                          {m.email}
+                          {m.name || m.email}
                         </option>
                       ))}
                     </select>

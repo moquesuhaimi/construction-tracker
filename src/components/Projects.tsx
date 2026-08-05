@@ -73,7 +73,8 @@ const TeamModal: React.FC<{ project: Project; onClose: () => void }> = ({ projec
           {members.map((member) => (
             <div key={member.id} className="flex items-center justify-between bg-gray-700 rounded-lg px-3 py-2">
               <div>
-                <p className="text-white text-sm">{member.email}</p>
+                <p className="text-white text-sm">{member.name || member.email}</p>
+                {member.name && <p className="text-xs text-gray-500">{member.email}</p>}
                 <p className="text-xs text-gray-400">
                   {member.userId ? 'Active - has signed in' : 'Pending - waiting for them to sign up'}
                 </p>
@@ -140,7 +141,7 @@ const CashFlowModal: React.FC<{ project: Project; expenses: Expense[]; onClose: 
           {balances.map(({ member, given, spent, balance }) => (
             <div key={member.id} className="bg-gray-700 rounded-lg px-3 py-3">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-white text-sm font-medium">{member.email}</p>
+                <p className="text-white text-sm font-medium">{member.name || member.email}</p>
                 <span
                   className={`text-sm font-semibold ${
                     balance > 0 ? 'text-yellow-500' : balance < 0 ? 'text-red-500' : 'text-green-500'
@@ -172,7 +173,7 @@ const CashFlowModal: React.FC<{ project: Project; expenses: Expense[]; onClose: 
                   <div key={advance.id} className="flex items-center justify-between text-sm bg-gray-700 rounded-lg px-3 py-2">
                     <div>
                       <p className="text-white">
-                        ${advance.amount.toLocaleString()} to {member?.email || 'a team member'}
+                        ${advance.amount.toLocaleString()} to {member?.name || member?.email || 'a team member'}
                       </p>
                       <p className="text-xs text-gray-400">
                         {new Date(advance.date).toLocaleDateString()}

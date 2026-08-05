@@ -75,7 +75,7 @@ create table if not exists public.project_members (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references public.projects (id) on delete cascade,
   email text not null,
-  user_id uuid references auth.users (id) on delete set null,
+  user_id uuid references public.profiles (id) on delete set null,
   added_at timestamptz not null default now(),
   unique (project_id, email)
 );

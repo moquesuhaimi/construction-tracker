@@ -16,6 +16,7 @@ export interface ProjectMember {
   projectId: string;
   email: string;
   userId: string | null;
+  name?: string;
   addedAt: string;
 }
 

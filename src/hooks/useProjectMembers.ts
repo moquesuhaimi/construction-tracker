@@ -8,15 +8,20 @@ type MemberRow = {
   email: string;
   user_id: string | null;
   added_at: string;
+  profiles?: { name: string } | { name: string }[] | null;
 };
 
-const fromRow = (row: MemberRow): ProjectMember => ({
-  id: row.id,
-  projectId: row.project_id,
-  email: row.email,
-  userId: row.user_id,
-  addedAt: row.added_at,
-});
+const fromRow = (row: MemberRow): ProjectMember => {
+  const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    email: row.email,
+    userId: row.user_id,
+    name: profile?.name,
+    addedAt: row.added_at,
+  };
+};
 
 export const useProjectMembers = (projectId: string | null) => {
   const [members, setMembers] = useState<ProjectMember[]>([]);
@@ -33,7 +38,7 @@ export const useProjectMembers = (projectId: string | null) => {
 
     const { data, error } = await supabase
       .from('project_members')
-      .select('*')
+      .select('*, profiles:user_id ( name )')
       .eq('project_id', projectId)
       .order('added_at', { ascending: true });
 
