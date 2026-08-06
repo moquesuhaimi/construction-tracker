@@ -76,7 +76,10 @@ export const AddExpense: React.FC = () => {
         amount: parseFloat(formData.amount),
         date: formData.date,
         receipt: formData.receipt.trim() || undefined,
+        receiptImage: receiptImage || undefined,
       });
+
+      setReceiptImage(null);
 
       // Reset form
       setFormData({
