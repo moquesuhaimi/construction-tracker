@@ -44,7 +44,11 @@ export const AddExpense: React.FC = () => {
   const pettyProject = projects.find((p) => p.id === pettyProjectId);
   const canGivePettyCash = pettyProject && user && pettyProject.ownerId === user.id;
 
-  // Live petty cash balance for the "Log Expense" form, for the person currently logging it
+  // Live petty cash balance for the "Log Expense" form, for the person currently logging it.
+  // This only applies to team members who receive float - not the project manager/owner.
+  const selectedProject = projects.find((p) => p.id === formData.projectId);
+  const isOwnerOfSelectedProject = !!(selectedProject && user && selectedProject.ownerId === user.id);
+
   const { advances: myAdvances } = useCashAdvances(formData.projectId || null);
   const myFloatGiven = user
     ? myAdvances.filter((a) => a.recipientId === user.id).reduce((sum, a) => sum + a.amount, 0)
@@ -259,8 +263,8 @@ export const AddExpense: React.FC = () => {
                 </div>
               </div>
 
-              {/* Petty cash balance indicator */}
-              {formData.projectId && thisAmount > 0 && (
+              {/* Petty cash balance indicator - team members only, not the project owner */}
+              {formData.projectId && thisAmount > 0 && !isOwnerOfSelectedProject && (
                 <div
                   className={`rounded-lg p-3 border text-sm ${
                     myBalanceAfterThis < 0

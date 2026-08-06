@@ -253,12 +253,49 @@ create policy "Recipient and owner can see read status"
     )
   );
 
--- 7. Helpful indexes ---------------------------------------------------------
+-- 7. Progress payments (cash actually received from the client) -----------
+-- The project's "budget" is the contract value, which is not the same as
+-- cash on hand - clients pay in stages. This table tracks each payment
+-- received so the owner can see real cash position, not just budget usage.
+create table if not exists public.progress_payments (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects (id) on delete cascade,
+  amount numeric not null,
+  date date not null default current_date,
+  description text,
+  created_by uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+alter table public.progress_payments enable row level security;
+
+create policy "Only the owner can see progress payments"
+  on public.progress_payments for select
+  to authenticated
+  using (public.is_project_owner(project_id));
+
+create policy "Only the owner can record progress payments"
+  on public.progress_payments for insert
+  to authenticated
+  with check (public.is_project_owner(project_id) and created_by = auth.uid());
+
+create policy "Only the owner can edit progress payments"
+  on public.progress_payments for update
+  to authenticated
+  using (public.is_project_owner(project_id));
+
+create policy "Only the owner can delete progress payments"
+  on public.progress_payments for delete
+  to authenticated
+  using (public.is_project_owner(project_id));
+
+-- 8. Helpful indexes ---------------------------------------------------------
 create index if not exists idx_expenses_project_id on public.expenses (project_id);
 create index if not exists idx_expenses_user_id on public.expenses (user_id);
 create index if not exists idx_project_members_project_id on public.project_members (project_id);
 create index if not exists idx_project_members_email on public.project_members (email);
 create index if not exists idx_cash_advances_project_id on public.cash_advances (project_id);
 create index if not exists idx_cash_advances_recipient_id on public.cash_advances (recipient_id);
+create index if not exists idx_progress_payments_project_id on public.progress_payments (project_id);
 
 notify pgrst, 'reload schema';

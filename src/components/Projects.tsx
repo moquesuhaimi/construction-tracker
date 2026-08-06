@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, Calendar, DollarSign, Building, AlertCircle, Eye, ArrowLeft, Download, FileSpreadsheet, Users, X, Mail, Wallet } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, DollarSign, Building, AlertCircle, Eye, ArrowLeft, Download, FileSpreadsheet, Users, X, Mail, Wallet, Landmark } from 'lucide-react';
 import { useProjects } from '../hooks/useProjects';
 import { useExpenses } from '../hooks/useExpenses';
 import { useProjectMembers } from '../hooks/useProjectMembers';
 import { useCashAdvances } from '../hooks/useCashAdvances';
+import { useProgressPayments } from '../hooks/useProgressPayments';
 import { useAuth } from '../hooks/useAuth';
 import { Project, Expense } from '../types';
 import { PROJECT_STATUSES, EXPENSE_CATEGORIES } from '../utils/constants';
@@ -198,6 +199,144 @@ const CashFlowModal: React.FC<{ project: Project; expenses: Expense[]; onClose: 
   );
 };
 
+const PaymentsModal: React.FC<{ project: Project; totalExpenses: number; onClose: () => void }> = ({
+  project,
+  totalExpenses,
+  onClose,
+}) => {
+  const { payments, addPayment, deletePayment, totalReceived } = useProgressPayments(project.id);
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [description, setDescription] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const cashPosition = totalReceived - totalExpenses;
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amount) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await addPayment({ amount: parseFloat(amount), date, description: description.trim() || undefined });
+      setAmount('');
+      setDescription('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not record that payment.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+      <div className="bg-gray-800 rounded-lg p-4 lg:p-6 max-w-2xl w-full border border-gray-700 my-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-base lg:text-lg font-semibold text-white">Payments - {project.name}</h3>
+            <p className="text-xs text-gray-400">
+              Record what the client has actually paid so far, separate from the total contract value.
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        {/* Cash position summary */}
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          <div className="bg-gray-700 rounded-lg px-3 py-3 text-center">
+            <p className="text-xs text-gray-400 mb-1">Received</p>
+            <p className="text-white font-semibold text-sm lg:text-base">${totalReceived.toLocaleString()}</p>
+          </div>
+          <div className="bg-gray-700 rounded-lg px-3 py-3 text-center">
+            <p className="text-xs text-gray-400 mb-1">Spent</p>
+            <p className="text-white font-semibold text-sm lg:text-base">${totalExpenses.toLocaleString()}</p>
+          </div>
+          <div className="bg-gray-700 rounded-lg px-3 py-3 text-center">
+            <p className="text-xs text-gray-400 mb-1">Cash Position</p>
+            <p className={`font-semibold text-sm lg:text-base ${cashPosition < 0 ? 'text-red-500' : 'text-green-500'}`}>
+              {cashPosition < 0 ? `-$${Math.abs(cashPosition).toLocaleString()}` : `$${cashPosition.toLocaleString()}`}
+            </p>
+          </div>
+        </div>
+
+        {cashPosition < 0 && (
+          <div className="bg-red-500 bg-opacity-10 border border-red-500 rounded-lg p-3 mb-6 text-sm text-red-400">
+            You've spent ${Math.abs(cashPosition).toLocaleString()} more than the client has paid so far. This
+            project is currently being funded out of pocket until the next payment comes in.
+          </div>
+        )}
+
+        {/* Add payment form */}
+        <form onSubmit={handleAdd} className="space-y-3 border-t border-gray-700 pt-4 mb-6">
+          <p className="text-sm font-medium text-gray-300">Record Payment Received</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="Amount"
+              step="0.01"
+              className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
+              required
+            />
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
+              required
+            />
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="e.g. Deposit, Progress Claim 1 (optional)"
+              className="sm:col-span-2 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
+            />
+          </div>
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg font-medium transition-colors text-sm disabled:opacity-50"
+          >
+            Record Payment
+          </button>
+        </form>
+
+        {/* History */}
+        <div className="space-y-2">
+          {payments.length === 0 ? (
+            <p className="text-gray-400 text-sm text-center py-4">No payments recorded yet.</p>
+          ) : (
+            payments.map((payment) => (
+              <div key={payment.id} className="flex items-center justify-between text-sm bg-gray-700 rounded-lg px-3 py-2">
+                <div>
+                  <p className="text-white">${payment.amount.toLocaleString()}</p>
+                  <p className="text-xs text-gray-400">
+                    {new Date(payment.date).toLocaleDateString()}
+                    {payment.description ? ` - ${payment.description}` : ''}
+                  </p>
+                </div>
+                <button
+                  onClick={() => deletePayment(payment.id)}
+                  className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                  title="Delete"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const Projects: React.FC = () => {
   const { user } = useAuth();
   const { projects, addProject, updateProject, deleteProject } = useProjects();
@@ -207,7 +346,9 @@ export const Projects: React.FC = () => {
   const [viewingProjectExpenses, setViewingProjectExpenses] = useState<string | null>(null);
   const [managingTeamFor, setManagingTeamFor] = useState<Project | null>(null);
   const [managingCashFor, setManagingCashFor] = useState<Project | null>(null);
+  const [managingPaymentsFor, setManagingPaymentsFor] = useState<Project | null>(null);
   const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
+  const { totalReceived: viewingProjectReceived } = useProgressPayments(viewingProjectExpenses);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -516,7 +657,28 @@ export const Projects: React.FC = () => {
               </p>
             </div>
           </div>
-          
+
+          {project.ownerId === user?.id && (
+            <div className="mt-4 pt-4 border-t border-gray-700 flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-xs lg:text-sm flex items-center gap-2">
+                  <Landmark className="h-3.5 w-3.5" />
+                  Cash Position (Received - Spent)
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">Received: ${viewingProjectReceived.toLocaleString()}</p>
+              </div>
+              <p
+                className={`text-lg lg:text-xl font-bold ${
+                  viewingProjectReceived - totalExpenses < 0 ? 'text-red-500' : 'text-green-500'
+                }`}
+              >
+                {viewingProjectReceived - totalExpenses < 0
+                  ? `-$${Math.abs(viewingProjectReceived - totalExpenses).toLocaleString()}`
+                  : `$${(viewingProjectReceived - totalExpenses).toLocaleString()}`}
+              </p>
+            </div>
+          )}
+
           <div className="mt-4">
             <div className="flex justify-between text-sm mb-2">
               <span className="text-gray-300 text-xs lg:text-sm">Budget Usage</span>
@@ -821,6 +983,13 @@ export const Projects: React.FC = () => {
                         <Wallet className="h-4 w-4" />
                       </button>
                       <button
+                        onClick={() => setManagingPaymentsFor(project)}
+                        className="text-gray-400 hover:text-yellow-500 transition-colors"
+                        title="Payments"
+                      >
+                        <Landmark className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => handleEdit(project)}
                         className="text-gray-400 hover:text-yellow-500 transition-colors"
                       >
@@ -911,6 +1080,14 @@ export const Projects: React.FC = () => {
 
       {managingCashFor && (
         <CashFlowModal project={managingCashFor} expenses={expenses} onClose={() => setManagingCashFor(null)} />
+      )}
+
+      {managingPaymentsFor && (
+        <PaymentsModal
+          project={managingPaymentsFor}
+          totalExpenses={getProjectExpenses(managingPaymentsFor.id)}
+          onClose={() => setManagingPaymentsFor(null)}
+        />
       )}
     </div>
   );

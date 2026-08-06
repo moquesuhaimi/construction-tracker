@@ -32,6 +32,16 @@ export interface CashAdvance {
   createdAt: string;
 }
 
+export interface ProgressPayment {
+  id: string;
+  projectId: string;
+  amount: number;
+  date: string;
+  description?: string;
+  createdBy: string;
+  createdAt: string;
+}
+
 export interface Expense {
   id: string;
   projectId: string;
