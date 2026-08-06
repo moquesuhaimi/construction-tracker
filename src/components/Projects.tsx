@@ -11,7 +11,7 @@ import { PROJECT_STATUSES, EXPENSE_CATEGORIES } from '../utils/constants';
 import * as XLSX from 'xlsx';
 
 const TeamModal: React.FC<{ project: Project; onClose: () => void }> = ({ project, onClose }) => {
-  const { members, addMember, removeMember } = useProjectMembers(project.id);
+  const { members, addMember, removeMember, setCashPositionAccess } = useProjectMembers(project.id);
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -72,21 +72,34 @@ const TeamModal: React.FC<{ project: Project; onClose: () => void }> = ({ projec
             <p className="text-gray-400 text-sm text-center py-4">No team members yet. Add one by email above.</p>
           )}
           {members.map((member) => (
-            <div key={member.id} className="flex items-center justify-between bg-gray-700 rounded-lg px-3 py-2">
-              <div>
-                <p className="text-white text-sm">{member.name || member.email}</p>
-                {member.name && <p className="text-xs text-gray-500">{member.email}</p>}
-                <p className="text-xs text-gray-400">
-                  {member.userId ? 'Active - has signed in' : 'Pending - waiting for them to sign up'}
-                </p>
+            <div key={member.id} className="bg-gray-700 rounded-lg px-3 py-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white text-sm">{member.name || member.email}</p>
+                  {member.name && <p className="text-xs text-gray-500">{member.email}</p>}
+                  <p className="text-xs text-gray-400">
+                    {member.userId ? 'Active - has signed in' : 'Pending - waiting for them to sign up'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => removeMember(member.id)}
+                  className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                  title="Remove"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </div>
-              <button
-                onClick={() => removeMember(member.id)}
-                className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                title="Remove"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              {member.userId && (
+                <label className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={member.canViewCashPosition}
+                    onChange={(e) => setCashPositionAccess(member.id, e.target.checked)}
+                    className="rounded border-gray-500 bg-gray-600 text-yellow-500 focus:ring-yellow-500"
+                  />
+                  <span className="text-xs text-gray-300">Can view Cash Position (client payments received)</span>
+                </label>
+              )}
             </div>
           ))}
         </div>
@@ -349,6 +362,7 @@ export const Projects: React.FC = () => {
   const [managingPaymentsFor, setManagingPaymentsFor] = useState<Project | null>(null);
   const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
   const { totalReceived: viewingProjectReceived } = useProgressPayments(viewingProjectExpenses);
+  const { members: viewingProjectMembers } = useProjectMembers(viewingProjectExpenses);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -643,7 +657,7 @@ export const Projects: React.FC = () => {
         <div className="bg-gray-800 rounded-lg p-4 lg:p-6 border border-gray-700">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <p className="text-gray-400 text-xs lg:text-sm">Total Budget</p>
+              <p className="text-gray-400 text-xs lg:text-sm">Project Value</p>
               <p className="text-xl lg:text-2xl font-bold text-white">${project.totalBudget.toLocaleString()}</p>
             </div>
             <div>
@@ -651,14 +665,15 @@ export const Projects: React.FC = () => {
               <p className="text-xl lg:text-2xl font-bold text-white">${totalExpenses.toLocaleString()}</p>
             </div>
             <div>
-              <p className="text-gray-400 text-xs lg:text-sm">Remaining Budget</p>
+              <p className="text-gray-400 text-xs lg:text-sm">Profit Projection</p>
               <p className={`text-xl lg:text-2xl font-bold ${getBudgetStatus(project.totalBudget, totalExpenses)}`}>
                 ${(project.totalBudget - totalExpenses).toLocaleString()}
               </p>
             </div>
           </div>
 
-          {project.ownerId === user?.id && (
+          {(project.ownerId === user?.id ||
+            viewingProjectMembers.some((m) => m.userId === user?.id && m.canViewCashPosition)) && (
             <div className="mt-4 pt-4 border-t border-gray-700 flex items-center justify-between">
               <div>
                 <p className="text-gray-400 text-xs lg:text-sm flex items-center gap-2">
@@ -863,7 +878,7 @@ export const Projects: React.FC = () => {
 
               <div>
                 <label className="block text-xs lg:text-sm font-medium text-gray-300 mb-2">
-                  Total Budget *
+                  Project Value *
                 </label>
                 <input
                   type="number"

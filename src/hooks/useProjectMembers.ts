@@ -7,6 +7,7 @@ type MemberRow = {
   project_id: string;
   email: string;
   user_id: string | null;
+  can_view_cash_position: boolean;
   added_at: string;
   profiles?: { name: string } | { name: string }[] | null;
 };
@@ -19,6 +20,7 @@ const fromRow = (row: MemberRow): ProjectMember => {
     email: row.email,
     userId: row.user_id,
     name: profile?.name,
+    canViewCashPosition: row.can_view_cash_position,
     addedAt: row.added_at,
   };
 };
@@ -75,11 +77,22 @@ export const useProjectMembers = (projectId: string | null) => {
     await fetchMembers();
   };
 
+  const setCashPositionAccess = async (id: string, canView: boolean) => {
+    const { error } = await supabase
+      .from('project_members')
+      .update({ can_view_cash_position: canView })
+      .eq('id', id);
+
+    if (error) throw error;
+    await fetchMembers();
+  };
+
   return {
     members,
     loading,
     addMember,
     removeMember,
+    setCashPositionAccess,
     refreshMembers: fetchMembers,
   };
 };

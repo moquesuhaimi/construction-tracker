@@ -17,6 +17,7 @@ export interface ProjectMember {
   email: string;
   userId: string | null;
   name?: string;
+  canViewCashPosition: boolean;
   addedAt: string;
 }
 

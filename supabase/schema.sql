@@ -76,6 +76,7 @@ create table if not exists public.project_members (
   project_id uuid not null references public.projects (id) on delete cascade,
   email text not null,
   user_id uuid references public.profiles (id) on delete set null,
+  can_view_cash_position boolean not null default false,
   added_at timestamptz not null default now(),
   unique (project_id, email)
 );
@@ -144,6 +145,11 @@ create policy "Only the owner can add team members"
 
 create policy "Only the owner can remove team members"
   on public.project_members for delete
+  to authenticated
+  using (public.is_project_owner(project_id));
+
+create policy "Only the owner can update team member access"
+  on public.project_members for update
   to authenticated
   using (public.is_project_owner(project_id));
 
@@ -269,10 +275,18 @@ create table if not exists public.progress_payments (
 
 alter table public.progress_payments enable row level security;
 
-create policy "Only the owner can see progress payments"
+create policy "Owner and granted members can see progress payments"
   on public.progress_payments for select
   to authenticated
-  using (public.is_project_owner(project_id));
+  using (
+    public.is_project_owner(project_id)
+    or exists (
+      select 1 from public.project_members m
+      where m.project_id = progress_payments.project_id
+        and m.user_id = auth.uid()
+        and m.can_view_cash_position = true
+    )
+  );
 
 create policy "Only the owner can record progress payments"
   on public.progress_payments for insert
