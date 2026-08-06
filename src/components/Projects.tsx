@@ -207,6 +207,7 @@ export const Projects: React.FC = () => {
   const [viewingProjectExpenses, setViewingProjectExpenses] = useState<string | null>(null);
   const [managingTeamFor, setManagingTeamFor] = useState<Project | null>(null);
   const [managingCashFor, setManagingCashFor] = useState<Project | null>(null);
+  const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -564,6 +565,20 @@ export const Projects: React.FC = () => {
               {projectExpenses.map((expense) => (
                 <div key={expense.id} className="p-4 lg:p-6 hover:bg-gray-750 transition-colors">
                   <div className="flex items-start justify-between gap-4">
+                    {expense.receiptImage && (
+                      <button
+                        type="button"
+                        onClick={() => setViewingReceipt(expense.receiptImage!)}
+                        className="flex-shrink-0"
+                        title="View receipt"
+                      >
+                        <img
+                          src={expense.receiptImage}
+                          alt="Receipt"
+                          className="w-14 h-14 lg:w-16 lg:h-16 object-cover rounded-lg border border-gray-600 hover:border-yellow-500 transition-colors"
+                        />
+                      </button>
+                    )}
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs lg:text-sm font-medium bg-yellow-500 bg-opacity-20 text-yellow-500">
@@ -607,6 +622,29 @@ export const Projects: React.FC = () => {
             </div>
           )}
         </div>
+
+        {viewingReceipt && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-50"
+            onClick={() => setViewingReceipt(null)}
+          >
+            <div className="relative max-w-2xl w-full">
+              <button
+                onClick={() => setViewingReceipt(null)}
+                className="absolute -top-10 right-0 text-gray-300 hover:text-white transition-colors"
+                title="Close"
+              >
+                <X className="h-8 w-8" />
+              </button>
+              <img
+                src={viewingReceipt}
+                alt="Receipt"
+                className="w-full max-h-[85vh] object-contain rounded-lg"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -619,7 +657,7 @@ export const Projects: React.FC = () => {
           <h1 className="text-xl lg:text-2xl font-bold text-white">Projects</h1>
           <p className="text-sm lg:text-base text-gray-400">Manage your construction projects</p>
         </div>
-        
+
         <div className="flex flex-col sm:flex-row gap-3">
           <button
             onClick={exportAllProjectsToSpreadsheet}

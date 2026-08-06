@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Receipt, Calendar, DollarSign, Building, Camera, Eye, Wallet, ClipboardList } from 'lucide-react';
+import { Plus, Receipt, Calendar, DollarSign, Building, Camera, Eye, Wallet, ClipboardList, X } from 'lucide-react';
 import { useExpenses } from '../hooks/useExpenses';
 import { useProjects } from '../hooks/useProjects';
 import { useProjectMembers } from '../hooks/useProjectMembers';
@@ -27,6 +27,7 @@ export const AddExpense: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showReceiptUpload, setShowReceiptUpload] = useState(false);
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
+  const [showFullReceipt, setShowFullReceipt] = useState(false);
 
   // Petty cash form state
   const [pettyProjectId, setPettyProjectId] = useState('');
@@ -337,7 +338,7 @@ export const AddExpense: React.FC = () => {
                       />
                       <button
                         type="button"
-                        onClick={() => setReceiptImage(receiptImage)}
+                        onClick={() => setShowFullReceipt(true)}
                         className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-lg opacity-0 hover:opacity-100 transition-opacity"
                       >
                         <Eye className="h-6 w-6 text-white" />
@@ -382,6 +383,30 @@ export const AddExpense: React.FC = () => {
               onReceiptProcessed={handleReceiptProcessed}
               onClose={() => setShowReceiptUpload(false)}
             />
+          )}
+
+          {/* Full-size receipt preview */}
+          {showFullReceipt && receiptImage && (
+            <div
+              className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-50"
+              onClick={() => setShowFullReceipt(false)}
+            >
+              <div className="relative max-w-2xl w-full">
+                <button
+                  onClick={() => setShowFullReceipt(false)}
+                  className="absolute -top-10 right-0 text-gray-300 hover:text-white transition-colors"
+                  title="Close"
+                >
+                  <X className="h-8 w-8" />
+                </button>
+                <img
+                  src={receiptImage}
+                  alt="Receipt"
+                  className="w-full max-h-[85vh] object-contain rounded-lg"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            </div>
           )}
 
           {/* Quick Tips */}
