@@ -54,6 +54,7 @@ export interface Expense {
   date: string;
   receipt?: string;
   receiptImage?: string;
+  hasReceiptImage?: boolean;
   createdAt: string;
 }
 

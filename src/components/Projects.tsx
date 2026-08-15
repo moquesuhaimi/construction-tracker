@@ -353,7 +353,8 @@ const PaymentsModal: React.FC<{ project: Project; totalExpenses: number; onClose
 export const Projects: React.FC = () => {
   const { user } = useAuth();
   const { projects, addProject, updateProject, deleteProject } = useProjects();
-  const { expenses, deleteExpense } = useExpenses();
+  const { expenses, deleteExpense, fetchReceiptImage } = useExpenses();
+  const [loadingReceiptId, setLoadingReceiptId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [viewingProjectExpenses, setViewingProjectExpenses] = useState<string | null>(null);
@@ -742,18 +743,23 @@ export const Projects: React.FC = () => {
               {projectExpenses.map((expense) => (
                 <div key={expense.id} className="p-4 lg:p-6 hover:bg-gray-750 transition-colors">
                   <div className="flex items-start justify-between gap-4">
-                    {expense.receiptImage && (
+                    {expense.hasReceiptImage && (
                       <button
                         type="button"
-                        onClick={() => setViewingReceipt(expense.receiptImage!)}
-                        className="flex-shrink-0"
+                        onClick={async () => {
+                          setLoadingReceiptId(expense.id);
+                          const image = await fetchReceiptImage(expense.id);
+                          setLoadingReceiptId(null);
+                          if (image) setViewingReceipt(image);
+                        }}
+                        className="flex-shrink-0 w-14 h-14 lg:w-16 lg:h-16 rounded-lg border border-gray-600 hover:border-yellow-500 transition-colors bg-gray-900 flex items-center justify-center"
                         title="View receipt"
                       >
-                        <img
-                          src={expense.receiptImage}
-                          alt="Receipt"
-                          className="w-14 h-14 lg:w-16 lg:h-16 object-cover rounded-lg border border-gray-600 hover:border-yellow-500 transition-colors"
-                        />
+                        {loadingReceiptId === expense.id ? (
+                          <span className="text-gray-400 text-xs">...</span>
+                        ) : (
+                          <Eye className="h-5 w-5 text-gray-400" />
+                        )}
                       </button>
                     )}
                     <div className="flex-1">

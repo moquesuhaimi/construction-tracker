@@ -106,6 +106,40 @@ export const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onReceiptProcessed
     }
   };
 
+  // Resize + re-compress the photo so a multi-MB camera shot becomes a small,
+  // still-readable JPEG before it ever gets stored (as base64 text in the DB).
+  const compressImage = (dataUrl: string, maxDimension = 1600, quality = 0.75): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => reject(new Error('Could not process image'));
+      img.src = dataUrl;
+    });
+  };
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -115,10 +149,17 @@ export const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onReceiptProcessed
       }
 
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const imageUrl = e.target?.result as string;
-        setSelectedImage(imageUrl);
-        processImage(imageUrl);
+      reader.onload = async (e) => {
+        const rawImageUrl = e.target?.result as string;
+        try {
+          const imageUrl = await compressImage(rawImageUrl);
+          setSelectedImage(imageUrl);
+          processImage(imageUrl);
+        } catch {
+          // Fall back to the original image if compression fails for any reason
+          setSelectedImage(rawImageUrl);
+          processImage(rawImageUrl);
+        }
       };
       reader.readAsDataURL(file);
     }

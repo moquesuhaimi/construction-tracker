@@ -164,6 +164,7 @@ create table if not exists public.expenses (
   date date not null,
   receipt text,
   receipt_image text,
+  has_receipt_image boolean generated always as (receipt_image is not null) stored,
   created_at timestamptz not null default now()
 );
 

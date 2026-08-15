@@ -12,10 +12,16 @@ type ExpenseRow = {
   amount: number;
   date: string;
   receipt: string | null;
-  receipt_image: string | null;
+  receipt_image?: string | null;
+  has_receipt_image: boolean;
   created_at: string;
   profiles?: { name: string } | { name: string }[] | null;
 };
+
+// Every expense row EXCEPT receipt_image - that column can be several MB of
+// base64 text per row, so it's never included when fetching the whole list.
+// It's fetched on-demand (see fetchReceiptImage) only when someone opens it.
+const LIST_COLUMNS = 'id, project_id, user_id, category, description, amount, date, receipt, has_receipt_image, created_at';
 
 const fromRow = (row: ExpenseRow): Expense => {
   const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
@@ -30,6 +36,7 @@ const fromRow = (row: ExpenseRow): Expense => {
     date: row.date,
     receipt: row.receipt ?? undefined,
     receiptImage: row.receipt_image ?? undefined,
+    hasReceiptImage: row.has_receipt_image,
     createdAt: row.created_at,
   };
 };
@@ -50,7 +57,7 @@ export const useExpenses = () => {
 
     const { data, error } = await supabase
       .from('expenses')
-      .select('*, profiles ( name )')
+      .select(`${LIST_COLUMNS}, profiles ( name )`)
       .order('date', { ascending: false });
 
     if (error || !data) {
@@ -63,6 +70,24 @@ export const useExpenses = () => {
     setExpenses((data as ExpenseRow[]).map(fromRow));
     setLoading(false);
   }, [user]);
+
+  // Fetch the full receipt image for a single expense, on demand (e.g. when
+  // the user opens the lightbox). Not included in the list query above
+  // because it can be several MB of base64 text per row.
+  const fetchReceiptImage = useCallback(async (id: string): Promise<string | null> => {
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('receipt_image')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) {
+      console.error('Failed to load receipt image', error);
+      return null;
+    }
+
+    return (data as { receipt_image: string | null }).receipt_image ?? null;
+  }, []);
 
   useEffect(() => {
     fetchExpenses();
@@ -152,6 +177,7 @@ export const useExpenses = () => {
     getExpensesByProject,
     getExpensesByPeriod,
     getTotalExpenses,
+    fetchReceiptImage,
     refreshExpenses: fetchExpenses,
   };
 };
