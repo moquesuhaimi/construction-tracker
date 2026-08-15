@@ -17,6 +17,39 @@ export const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onReceiptProcessed
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
+  // The shop/vendor name is almost always printed near the very top of a
+  // receipt, before the "cash sale / tax invoice / GST no" boilerplate
+  // starts. Scan the first several lines and pick the first one that looks
+  // like a business name rather than a label, number, or noise from OCR.
+  const extractVendorName = (text: string): string | undefined => {
+    const lines = text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const boilerplate =
+      /\b(cash sale|tax invoice|invoice|receipt|gst|sst|reg(?:istration)?\s*no|tel|phone|fax|email|address|date|time|cashier|pos|order|no\.?\s*[:#]?\s*\d)\b/i;
+
+    for (const rawLine of lines.slice(0, 12)) {
+      // Keep letters, spaces and a few common punctuation marks used in
+      // business names (& . , ' -), drop everything else OCR misread.
+      const cleaned = rawLine.replace(/[^a-zA-Z&.,'\-\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+      if (cleaned.length < 4 || cleaned.length > 40) continue;
+      if (boilerplate.test(cleaned)) continue;
+
+      const words = cleaned.split(' ').filter((w) => w.length > 1);
+      if (words.length < 2) continue;
+
+      const letterCount = (cleaned.match(/[a-zA-Z]/g) || []).length;
+      if (letterCount / cleaned.length < 0.7) continue;
+
+      return cleaned;
+    }
+
+    return undefined;
+  };
+
   const processImage = async (imageUrl: string) => {
     setIsProcessing(true);
     setError(null);
@@ -69,22 +102,7 @@ export const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onReceiptProcessed
         }
       }
 
-      // Extract receipt number
-      const receiptPatterns = [
-        /(?:receipt|ref|reference|invoice|order)[\s#:]*([a-zA-Z0-9]+)/i,
-        /#([a-zA-Z0-9]+)/,
-        /(?:^|\s)([A-Z0-9]{6,})/
-      ];
-
-      let extractedReceiptNumber: string | undefined;
-      
-      for (const pattern of receiptPatterns) {
-        const match = text.match(pattern);
-        if (match && match[1]) {
-          extractedReceiptNumber = match[1];
-          break;
-        }
-      }
+      const extractedReceiptNumber = extractVendorName(text);
 
       const data = {
         amount: extractedAmount,
@@ -316,7 +334,7 @@ export const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onReceiptProcessed
                   )}
                   {extractedData.receiptNumber && (
                     <div className="flex justify-between">
-                      <span className="text-gray-300">Receipt Number:</span>
+                      <span className="text-gray-300">Detected Vendor:</span>
                       <span className="text-white font-medium">{extractedData.receiptNumber}</span>
                     </div>
                   )}
