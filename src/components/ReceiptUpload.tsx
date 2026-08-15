@@ -10,7 +10,6 @@ interface ReceiptUploadProps {
 export const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onReceiptProcessed, onClose }) => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isCropping, setIsCropping] = useState(false);
   const [extractedData, setExtractedData] = useState<{ amount?: number; receiptNumber?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -107,185 +106,6 @@ export const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onReceiptProcessed
     }
   };
 
-  // Lazy-load OpenCV.js (only when someone actually scans a receipt) so we
-  // can find the document's edges and straighten it, like a scanner app.
-  const loadOpenCv = (): Promise<any> => {
-    const w = window as any;
-    if (w.cv?.Mat) return Promise.resolve(w.cv);
-    if (!w.__openCvLoadPromise) {
-      w.__openCvLoadPromise = new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/@techstark/opencv-js/dist/opencv.js';
-        script.async = true;
-        script.onload = () => {
-          const cv = (window as any).cv;
-          if (!cv) {
-            reject(new Error('OpenCV failed to load'));
-            return;
-          }
-          if (cv.Mat) {
-            resolve(cv);
-          } else {
-            cv.onRuntimeInitialized = () => resolve(cv);
-          }
-        };
-        script.onerror = () => reject(new Error('Could not load OpenCV script'));
-        document.head.appendChild(script);
-      });
-    }
-    return w.__openCvLoadPromise;
-  };
-
-  // Never let cropping hang the UI - if it takes too long (slow connection,
-  // first-time library download, etc), just fall back and move on.
-  const withTimeout = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
-    return new Promise((resolve) => {
-      let settled = false;
-      const timer = setTimeout(() => {
-        if (!settled) {
-          settled = true;
-          resolve(fallback);
-        }
-      }, ms);
-      promise
-        .then((result) => {
-          if (!settled) {
-            settled = true;
-            clearTimeout(timer);
-            resolve(result);
-          }
-        })
-        .catch(() => {
-          if (!settled) {
-            settled = true;
-            clearTimeout(timer);
-            resolve(fallback);
-          }
-        });
-    });
-  };
-
-  const distance = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-
-  // Given 4 corner points in any order, sort them into
-  // [top-left, top-right, bottom-right, bottom-left].
-  const orderQuadPoints = (pts: number[][]): number[][] => {
-    const sums = pts.map((p) => p[0] + p[1]);
-    const diffs = pts.map((p) => p[0] - p[1]);
-    const tl = pts[sums.indexOf(Math.min(...sums))];
-    const br = pts[sums.indexOf(Math.max(...sums))];
-    const tr = pts[diffs.indexOf(Math.max(...diffs))];
-    const bl = pts[diffs.indexOf(Math.min(...diffs))];
-    return [tl, tr, br, bl];
-  };
-
-  // Detect the receipt/document's 4 edges and warp them flat, cropping out
-  // the background (table, hand, etc). Fully automatic - if a confident
-  // document edge can't be found, this just returns the original photo
-  // untouched rather than risk a bad crop.
-  const autoCropDocument = async (dataUrl: string): Promise<string> => {
-    let cv: any;
-    try {
-      cv = await loadOpenCv();
-    } catch (err) {
-      console.error('OpenCV unavailable, skipping auto-crop', err);
-      return dataUrl;
-    }
-
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const el = new Image();
-      el.onload = () => resolve(el);
-      el.onerror = () => reject(new Error('Could not load image for cropping'));
-      el.src = dataUrl;
-    });
-
-    let src, gray, blurred, edges, dilated, contours, hierarchy, kernel;
-    try {
-      src = cv.imread(img);
-      gray = new cv.Mat();
-      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-      blurred = new cv.Mat();
-      cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-      edges = new cv.Mat();
-      cv.Canny(blurred, edges, 50, 150);
-      kernel = cv.Mat.ones(5, 5, cv.CV_8U);
-      dilated = new cv.Mat();
-      cv.dilate(edges, dilated, kernel);
-
-      contours = new cv.MatVector();
-      hierarchy = new cv.Mat();
-      cv.findContours(dilated, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
-
-      const imageArea = src.rows * src.cols;
-      let bestQuad: number[][] | null = null;
-      let bestArea = 0;
-
-      for (let i = 0; i < contours.size(); i++) {
-        const cnt = contours.get(i);
-        const peri = cv.arcLength(cnt, true);
-        const approx = new cv.Mat();
-        cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
-
-        if (approx.rows === 4) {
-          const area = Math.abs(cv.contourArea(approx));
-          // Require the detected shape to cover a meaningful chunk of the
-          // photo - otherwise it's probably noise, not the receipt itself.
-          if (area > bestArea && area > imageArea * 0.2) {
-            bestArea = area;
-            const pts: number[][] = [];
-            for (let j = 0; j < 4; j++) {
-              pts.push([approx.data32S[j * 2], approx.data32S[j * 2 + 1]]);
-            }
-            bestQuad = pts;
-          }
-        }
-        approx.delete();
-        cnt.delete();
-      }
-
-      if (!bestQuad) return dataUrl;
-
-      const [tl, tr, br, bl] = orderQuadPoints(bestQuad);
-      const outWidth = Math.round(Math.max(distance(tl, tr), distance(bl, br)));
-      const outHeight = Math.round(Math.max(distance(tl, bl), distance(tr, br)));
-
-      if (outWidth < 50 || outHeight < 50) return dataUrl;
-
-      const srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-        tl[0], tl[1], tr[0], tr[1], br[0], br[1], bl[0], bl[1],
-      ]);
-      const dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-        0, 0, outWidth, 0, outWidth, outHeight, 0, outHeight,
-      ]);
-      const M = cv.getPerspectiveTransform(srcTri, dstTri);
-      const dst = new cv.Mat();
-      cv.warpPerspective(src, dst, M, new cv.Size(outWidth, outHeight));
-
-      const canvas = document.createElement('canvas');
-      cv.imshow(canvas, dst);
-      const result = canvas.toDataURL('image/jpeg', 0.92);
-
-      srcTri.delete();
-      dstTri.delete();
-      M.delete();
-      dst.delete();
-
-      return result;
-    } catch (err) {
-      console.error('Auto-crop failed, using original image', err);
-      return dataUrl;
-    } finally {
-      src?.delete();
-      gray?.delete();
-      blurred?.delete();
-      edges?.delete();
-      dilated?.delete();
-      kernel?.delete();
-      contours?.delete();
-      hierarchy?.delete();
-    }
-  };
-
   // Resize + re-compress the photo so a multi-MB camera shot becomes a small,
   // still-readable JPEG before it ever gets stored (as base64 text in the DB).
   const compressImage = (dataUrl: string, maxDimension = 1600, quality = 0.75): Promise<string> => {
@@ -331,16 +151,12 @@ export const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onReceiptProcessed
       const reader = new FileReader();
       reader.onload = async (e) => {
         const rawImageUrl = e.target?.result as string;
-        setIsCropping(true);
         try {
-          const croppedUrl = await withTimeout(autoCropDocument(rawImageUrl), 12000, rawImageUrl);
-          const imageUrl = await compressImage(croppedUrl);
-          setIsCropping(false);
+          const imageUrl = await compressImage(rawImageUrl);
           setSelectedImage(imageUrl);
           processImage(imageUrl);
         } catch {
-          // Fall back to the original image if crop/compression fails for any reason
-          setIsCropping(false);
+          // Fall back to the original image if compression fails for any reason
           setSelectedImage(rawImageUrl);
           processImage(rawImageUrl);
         }
@@ -377,13 +193,7 @@ export const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onReceiptProcessed
           </button>
         </div>
 
-        {!selectedImage ? isCropping ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="h-10 w-10 text-yellow-500 animate-spin mb-4" />
-            <p className="text-white font-medium">Cropping & straightening receipt...</p>
-            <p className="text-gray-400 text-sm mt-1">First scan may take a few seconds while tools load</p>
-          </div>
-        ) : (
+        {!selectedImage ? (
           <div className="space-y-4">
             <p className="text-gray-400 text-center mb-6">
               Upload a receipt image to automatically extract amount and receipt number
