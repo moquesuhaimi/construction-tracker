@@ -136,6 +136,35 @@ export const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onReceiptProcessed
     return w.__openCvLoadPromise;
   };
 
+  // Never let cropping hang the UI - if it takes too long (slow connection,
+  // first-time library download, etc), just fall back and move on.
+  const withTimeout = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
+    return new Promise((resolve) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          resolve(fallback);
+        }
+      }, ms);
+      promise
+        .then((result) => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve(result);
+          }
+        })
+        .catch(() => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve(fallback);
+          }
+        });
+    });
+  };
+
   const distance = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 
   // Given 4 corner points in any order, sort them into
@@ -304,7 +333,7 @@ export const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onReceiptProcessed
         const rawImageUrl = e.target?.result as string;
         setIsCropping(true);
         try {
-          const croppedUrl = await autoCropDocument(rawImageUrl);
+          const croppedUrl = await withTimeout(autoCropDocument(rawImageUrl), 12000, rawImageUrl);
           const imageUrl = await compressImage(croppedUrl);
           setIsCropping(false);
           setSelectedImage(imageUrl);
