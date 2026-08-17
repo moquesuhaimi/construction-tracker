@@ -364,6 +364,7 @@ export const Projects: React.FC = () => {
   const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
   const { totalReceived: viewingProjectReceived } = useProgressPayments(viewingProjectExpenses);
   const { members: viewingProjectMembers } = useProjectMembers(viewingProjectExpenses);
+  const { advances: viewingProjectAdvances } = useCashAdvances(viewingProjectExpenses);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -694,6 +695,43 @@ export const Projects: React.FC = () => {
               </p>
             </div>
           )}
+
+          {project.ownerId !== user?.id && (() => {
+            const myGiven = viewingProjectAdvances
+              .filter((a) => a.recipientId === user?.id)
+              .reduce((sum, a) => sum + a.amount, 0);
+            const mySpent = projectExpenses
+              .filter((e) => e.userId === user?.id)
+              .reduce((sum, e) => sum + e.amount, 0);
+            const myBalance = myGiven - mySpent;
+
+            if (myGiven === 0 && mySpent === 0) return null;
+
+            return (
+              <div className="mt-4 pt-4 border-t border-gray-700 flex items-center justify-between">
+                <div>
+                  <p className="text-gray-400 text-xs lg:text-sm flex items-center gap-2">
+                    <Wallet className="h-3.5 w-3.5" />
+                    My Petty Cash Balance
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Given: ${myGiven.toLocaleString()} · Spent: ${mySpent.toLocaleString()}
+                  </p>
+                </div>
+                <p
+                  className={`text-lg lg:text-xl font-bold ${
+                    myBalance > 0 ? 'text-yellow-500' : myBalance < 0 ? 'text-red-500' : 'text-green-500'
+                  }`}
+                >
+                  {myBalance > 0
+                    ? `Holding $${myBalance.toLocaleString()}`
+                    : myBalance < 0
+                    ? `Owed $${Math.abs(myBalance).toLocaleString()}`
+                    : 'Settled'}
+                </p>
+              </div>
+            );
+          })()}
 
           <div className="mt-4">
             <div className="flex justify-between text-sm mb-2">
