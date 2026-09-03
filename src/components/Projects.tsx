@@ -362,6 +362,7 @@ export const Projects: React.FC = () => {
   const [managingCashFor, setManagingCashFor] = useState<Project | null>(null);
   const [managingPaymentsFor, setManagingPaymentsFor] = useState<Project | null>(null);
   const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const { totalReceived: viewingProjectReceived } = useProgressPayments(viewingProjectExpenses);
   const { members: viewingProjectMembers } = useProjectMembers(viewingProjectExpenses);
   const { advances: viewingProjectAdvances } = useCashAdvances(viewingProjectExpenses);
@@ -623,6 +624,11 @@ export const Projects: React.FC = () => {
     const project = projects.find(p => p.id === viewingProjectExpenses);
     const projectExpenses = getProjectExpenseDetails(viewingProjectExpenses);
     const totalExpenses = getProjectExpenses(viewingProjectExpenses);
+    const filteredExpenses =
+      categoryFilter === 'all' ? projectExpenses : projectExpenses.filter((e) => e.category === categoryFilter);
+    const usedCategories = EXPENSE_CATEGORIES.filter((cat) =>
+      projectExpenses.some((e) => e.category === cat.id)
+    );
 
     if (!project) {
       setViewingProjectExpenses(null);
@@ -758,9 +764,9 @@ export const Projects: React.FC = () => {
         {/* Expenses List */}
         <div className="bg-gray-800 rounded-lg border border-gray-700">
           <div className="p-4 lg:p-6 border-b border-gray-700">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-3">
               <h3 className="text-base lg:text-lg font-semibold text-white">
-                All Expenses ({projectExpenses.length})
+                All Expenses ({filteredExpenses.length}{categoryFilter !== 'all' ? ` of ${projectExpenses.length}` : ''})
               </h3>
               {projectExpenses.length > 0 && (
                 <div className="sm:hidden">
@@ -774,11 +780,25 @@ export const Projects: React.FC = () => {
                 </div>
               )}
             </div>
+            {projectExpenses.length > 0 && (
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="w-full sm:w-64 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              >
+                <option value="all">All Categories</option>
+                {usedCategories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
-          
-          {projectExpenses.length > 0 ? (
+
+          {filteredExpenses.length > 0 ? (
             <div className="divide-y divide-gray-700">
-              {projectExpenses.map((expense) => (
+              {filteredExpenses.map((expense) => (
                 <div key={expense.id} className="p-4 lg:p-6 hover:bg-gray-750 transition-colors">
                   <div className="flex items-start justify-between gap-4">
                     {expense.hasReceiptImage && (
@@ -838,8 +858,14 @@ export const Projects: React.FC = () => {
           ) : (
             <div className="p-12 text-center">
               <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-base lg:text-lg font-medium text-white mb-2">No expenses yet</h3>
-              <p className="text-sm lg:text-base text-gray-400">Start adding expenses to track your project costs</p>
+              <h3 className="text-base lg:text-lg font-medium text-white mb-2">
+                {projectExpenses.length === 0 ? 'No expenses yet' : 'No expenses in this category'}
+              </h3>
+              <p className="text-sm lg:text-base text-gray-400">
+                {projectExpenses.length === 0
+                  ? 'Start adding expenses to track your project costs'
+                  : 'Try a different category filter'}
+              </p>
             </div>
           )}
         </div>
