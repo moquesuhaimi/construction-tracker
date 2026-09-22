@@ -356,7 +356,7 @@ const SubcontractorRow: React.FC<{
   expenses: Expense[];
   updateExpense: (id: string, updates: Partial<Expense>) => Promise<Expense | undefined>;
 }> = ({ project, expenses, updateExpense }) => {
-  const { subcontractors, addSubcontractor } = useSubcontractors(project.id);
+  const { subcontractors, addSubcontractor, updateSubcontractor } = useSubcontractors(project.id);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
@@ -367,6 +367,15 @@ const SubcontractorRow: React.FC<{
   const [linkingSubId, setLinkingSubId] = useState<string | null>(null);
   const [checkedExpenseIds, setCheckedExpenseIds] = useState<Set<string>>(new Set());
   const [linking, setLinking] = useState(false);
+
+  // Editing an existing subcontractor's details (e.g. contract value change
+  // from a variation order)
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editTrade, setEditTrade] = useState(SUBCONTRACTOR_TRADES[0]);
+  const [editContractValue, setEditContractValue] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const projectExpenses = expenses.filter((e) => e.projectId === project.id);
   const unlinkedExpenses = projectExpenses.filter((e) => e.category === 'subcontractor' && !e.subcontractorId);
@@ -411,6 +420,34 @@ const SubcontractorRow: React.FC<{
     }
   };
 
+  const startEdit = (sub: { id: string; name: string; trade: string; contractValue: number }) => {
+    setEditingId(sub.id);
+    setEditName(sub.name);
+    setEditTrade(sub.trade);
+    setEditContractValue(sub.contractValue.toString());
+    setEditError(null);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingId || !editName.trim() || !editContractValue) return;
+
+    setEditError(null);
+    setEditSubmitting(true);
+    try {
+      await updateSubcontractor(editingId, {
+        name: editName.trim(),
+        trade: editTrade,
+        contractValue: parseFloat(editContractValue),
+      });
+      setEditingId(null);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Could not update subcontractor.');
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
   return (
     <div className="border-t border-gray-700 pt-3 mt-1">
       <div className="space-y-2">
@@ -425,90 +462,182 @@ const SubcontractorRow: React.FC<{
           const isExpanded = expandedId === sub.id;
           const isLinking = linkingSubId === sub.id;
 
+          const payments = projectExpenses
+            .filter((e) => e.subcontractorId === sub.id)
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          const isEditing = editingId === sub.id;
+
           return (
             <div key={sub.id} className="bg-gray-700 rounded-lg px-3 py-2.5">
-              <button
-                type="button"
-                onClick={() => setExpandedId(isExpanded ? null : sub.id)}
-                className="w-full flex items-center justify-between text-left"
-              >
-                <div>
-                  <p className="text-white text-sm font-medium">
-                    {sub.name} <span className="text-gray-400 font-normal">({sub.trade})</span>
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    Kontrak: ${sub.contractValue.toLocaleString()} · Dibayar: ${paid.toLocaleString()} · Baki: $
-                    {remaining.toLocaleString()}
-                  </p>
-                </div>
-                {isExpanded ? (
-                  <ChevronUp className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                )}
-              </button>
-
-              {isExpanded && (
-                <div className="mt-3 pt-3 border-t border-gray-600">
-                  <div className="w-full bg-gray-600 rounded-full h-2 mb-3">
-                    <div
-                      className={`h-2 rounded-full ${remaining < 0 ? 'bg-red-500' : 'bg-green-500'}`}
-                      style={{ width: `${Math.min((paid / (sub.contractValue || 1)) * 100, 100)}%` }}
+              {isEditing ? (
+                <form onSubmit={handleSaveEdit} className="space-y-2">
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Subcontractor Name"
+                    className="w-full px-2.5 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                    required
+                  />
+                  <div className="flex gap-2">
+                    <select
+                      value={editTrade}
+                      onChange={(e) => setEditTrade(e.target.value)}
+                      className="flex-1 px-2.5 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                    >
+                      {SUBCONTRACTOR_TRADES.map((trade) => (
+                        <option key={trade} value={trade}>
+                          {trade}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      value={editContractValue}
+                      onChange={(e) => setEditContractValue(e.target.value)}
+                      placeholder="Subcontract Amount"
+                      step="0.01"
+                      className="flex-1 px-2.5 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                      required
                     />
                   </div>
-
-                  {unlinkedExpenses.length > 0 && !isLinking && (
+                  {editError && <p className="text-red-500 text-xs">{editError}</p>}
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={editSubmitting}
+                      className="bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-black px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                    >
+                      {editSubmitting ? 'Saving...' : 'Save'}
+                    </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        setLinkingSubId(sub.id);
-                        setCheckedExpenseIds(new Set());
-                      }}
-                      className="text-xs text-yellow-500 hover:text-yellow-400 transition-colors"
+                      onClick={() => setEditingId(null)}
+                      className="px-3 py-1.5 rounded text-xs text-gray-300 hover:text-white transition-colors"
                     >
-                      Link existing expenses ({unlinkedExpenses.length} belum di-link)...
+                      Cancel
                     </button>
-                  )}
-
-                  {isLinking && (
-                    <div className="space-y-2">
-                      <p className="text-xs text-gray-400">
-                        Tick expense yang untuk "{sub.name}", lepas tu klik Link:
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <div className="w-full flex items-center justify-between text-left">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedId(isExpanded ? null : sub.id)}
+                      className="flex-1 text-left"
+                    >
+                      <p className="text-white text-sm font-medium">
+                        {sub.name} <span className="text-gray-400 font-normal">({sub.trade})</span>
                       </p>
-                      {unlinkedExpenses.map((exp) => (
-                        <label key={exp.id} className="flex items-start gap-2 text-xs bg-gray-800 rounded px-2 py-1.5">
-                          <input
-                            type="checkbox"
-                            checked={checkedExpenseIds.has(exp.id)}
-                            onChange={() => toggleChecked(exp.id)}
-                            className="mt-0.5 rounded border-gray-500 bg-gray-600 text-yellow-500 focus:ring-yellow-500"
-                          />
-                          <span className="flex-1">
-                            <span className="text-white">{exp.description}</span>
-                            <span className="text-gray-400"> - ${exp.amount.toLocaleString()} - {new Date(exp.date).toLocaleDateString()}</span>
-                          </span>
-                        </label>
-                      ))}
-                      <div className="flex gap-2 pt-1">
-                        <button
-                          type="button"
-                          disabled={checkedExpenseIds.size === 0 || linking}
-                          onClick={() => handleLinkSelected(sub.id)}
-                          className="bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-black px-3 py-1.5 rounded text-xs font-medium transition-colors"
-                        >
-                          {linking ? 'Linking...' : `Link ${checkedExpenseIds.size || ''}`}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setLinkingSubId(null)}
-                          className="px-3 py-1.5 rounded text-xs text-gray-300 hover:text-white transition-colors"
-                        >
-                          Cancel
-                        </button>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Subcontract Amount: ${sub.contractValue.toLocaleString()} · Paid: $
+                        {paid.toLocaleString()} · Balance: ${remaining.toLocaleString()}
+                      </p>
+                    </button>
+                    <div className="flex items-center gap-3 flex-shrink-0 ml-2">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(sub)}
+                        className="text-gray-400 hover:text-yellow-500 transition-colors"
+                        title="Edit subcontractor"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                      <button type="button" onClick={() => setExpandedId(isExpanded ? null : sub.id)}>
+                        {isExpanded ? (
+                          <ChevronUp className="h-4 w-4 text-gray-400" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-gray-400" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="mt-3 pt-3 border-t border-gray-600">
+                      <div className="w-full bg-gray-600 rounded-full h-2 mb-3">
+                        <div
+                          className={`h-2 rounded-full ${remaining < 0 ? 'bg-red-500' : 'bg-green-500'}`}
+                          style={{ width: `${Math.min((paid / (sub.contractValue || 1)) * 100, 100)}%` }}
+                        />
                       </div>
+
+                      {/* Payment history */}
+                      {payments.length > 0 ? (
+                        <div className="space-y-1 mb-3">
+                          <p className="text-xs text-gray-400 font-medium">Payment History</p>
+                          {payments.map((p) => (
+                            <div
+                              key={p.id}
+                              className="flex items-center justify-between text-xs bg-gray-800 rounded px-2 py-1.5"
+                            >
+                              <div>
+                                <span className="text-white">{p.description}</span>
+                                <span className="text-gray-500"> · {new Date(p.date).toLocaleDateString()}</span>
+                              </div>
+                              <span className="text-gray-300">${p.amount.toLocaleString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500 mb-3">No payments linked to this subcontractor yet.</p>
+                      )}
+
+                      {unlinkedExpenses.length > 0 && !isLinking && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLinkingSubId(sub.id);
+                            setCheckedExpenseIds(new Set());
+                          }}
+                          className="text-xs text-yellow-500 hover:text-yellow-400 transition-colors"
+                        >
+                          Link existing expenses ({unlinkedExpenses.length} unlinked)...
+                        </button>
+                      )}
+
+                      {isLinking && (
+                        <div className="space-y-2">
+                          <p className="text-xs text-gray-400">
+                            Tick the expenses that belong to "{sub.name}", then click Link:
+                          </p>
+                          {unlinkedExpenses.map((exp) => (
+                            <label key={exp.id} className="flex items-start gap-2 text-xs bg-gray-800 rounded px-2 py-1.5">
+                              <input
+                                type="checkbox"
+                                checked={checkedExpenseIds.has(exp.id)}
+                                onChange={() => toggleChecked(exp.id)}
+                                className="mt-0.5 rounded border-gray-500 bg-gray-600 text-yellow-500 focus:ring-yellow-500"
+                              />
+                              <span className="flex-1">
+                                <span className="text-white">{exp.description}</span>
+                                <span className="text-gray-400"> - ${exp.amount.toLocaleString()} - {new Date(exp.date).toLocaleDateString()}</span>
+                              </span>
+                            </label>
+                          ))}
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              type="button"
+                              disabled={checkedExpenseIds.size === 0 || linking}
+                              onClick={() => handleLinkSelected(sub.id)}
+                              className="bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-black px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                            >
+                              {linking ? 'Linking...' : `Link ${checkedExpenseIds.size || ''}`}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setLinkingSubId(null)}
+                              className="px-3 py-1.5 rounded text-xs text-gray-300 hover:text-white transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
+                </>
               )}
             </div>
           );
@@ -521,7 +650,7 @@ const SubcontractorRow: React.FC<{
             type="text"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="Nama subcontractor"
+            placeholder="Subcontractor Name"
             className="w-full px-2.5 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500"
             required
           />
@@ -541,7 +670,7 @@ const SubcontractorRow: React.FC<{
               type="number"
               value={newContractValue}
               onChange={(e) => setNewContractValue(e.target.value)}
-              placeholder="Nilai Kontrak"
+              placeholder="Subcontract Amount"
               step="0.01"
               className="flex-1 px-2.5 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500"
               required
