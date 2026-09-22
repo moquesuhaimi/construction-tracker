@@ -812,7 +812,10 @@ const SummaryModal: React.FC<{
 };
 
 export const Projects: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
+  // App admin (the app's maintainer) gets owner-level access on every
+  // project, not just ones they personally created.
+  const isOwnerOf = (project: Project) => project.ownerId === user?.id || isAdmin;
   const { projects, addProject, updateProject, deleteProject } = useProjects();
   const { expenses, deleteExpense, fetchReceiptImage, updateExpense } = useExpenses();
   const [loadingReceiptId, setLoadingReceiptId] = useState<string | null>(null);
@@ -1142,7 +1145,7 @@ export const Projects: React.FC = () => {
             </div>
           </div>
 
-          {(project.ownerId === user?.id ||
+          {(isOwnerOf(project) ||
             viewingProjectMembers.some((m) => m.userId === user?.id && m.canViewCashPosition)) && (
             <div className="mt-4 pt-4 border-t border-gray-700 flex items-center justify-between">
               <div>
@@ -1164,7 +1167,7 @@ export const Projects: React.FC = () => {
             </div>
           )}
 
-          {project.ownerId !== user?.id && (() => {
+          {!isOwnerOf(project) && (() => {
             const myGiven = viewingProjectAdvances
               .filter((a) => a.recipientId === user?.id)
               .reduce((sum, a) => sum + a.amount, 0);
@@ -1513,7 +1516,7 @@ export const Projects: React.FC = () => {
                   </span>
                 </div>
                 <div className="flex gap-2">
-                  {project.ownerId === user?.id && (
+                  {isOwnerOf(project) && (
                     <>
                       <button
                         onClick={() => setManagingTeamFor(project)}
@@ -1558,7 +1561,7 @@ export const Projects: React.FC = () => {
                   >
                     <Eye className="h-4 w-4" />
                   </button>
-                  {project.ownerId === user?.id && (
+                  {isOwnerOf(project) && (
                     <button
                       onClick={() => handleDelete(project)}
                       className="text-gray-400 hover:text-red-500 transition-colors"

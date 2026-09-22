@@ -10,6 +10,9 @@ create table if not exists public.profiles (
   company text not null default '',
   role text not null default '',
   profile_image text,
+  -- App-wide admin override: lets the app's maintainer access owner-only
+  -- functions on any project, not just ones they personally created.
+  is_admin boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -83,14 +86,26 @@ create table if not exists public.project_members (
 
 alter table public.project_members enable row level security;
 
--- Helper: does the current user have access to a project (owner or member)?
-create or replace function public.has_project_access(p_project_id uuid)
+-- Helper: is the current user an app-wide admin (the app's maintainer)?
+create or replace function public.is_app_admin()
 returns boolean
 language sql
 security definer set search_path = public
 stable
 as $$
   select exists (
+    select 1 from public.profiles pr where pr.id = auth.uid() and pr.is_admin = true
+  );
+$$;
+
+-- Helper: does the current user have access to a project (owner, member, or app admin)?
+create or replace function public.has_project_access(p_project_id uuid)
+returns boolean
+language sql
+security definer set search_path = public
+stable
+as $$
+  select public.is_app_admin() or exists (
     select 1 from public.projects p
     where p.id = p_project_id and p.owner_id = auth.uid()
   ) or exists (
@@ -105,7 +120,7 @@ language sql
 security definer set search_path = public
 stable
 as $$
-  select exists (
+  select public.is_app_admin() or exists (
     select 1 from public.projects p
     where p.id = p_project_id and p.owner_id = auth.uid()
   );
@@ -125,12 +140,12 @@ create policy "Create projects as yourself"
 create policy "Only the owner can edit a project"
   on public.projects for update
   to authenticated
-  using (owner_id = auth.uid());
+  using (public.is_project_owner(id));
 
 create policy "Only the owner can delete a project"
   on public.projects for delete
   to authenticated
-  using (owner_id = auth.uid());
+  using (public.is_project_owner(id));
 
 -- Project members policies
 create policy "Members list visible to owner and members"

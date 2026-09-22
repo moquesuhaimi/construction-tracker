@@ -13,7 +13,7 @@ type Mode = 'expense' | 'petty-cash';
 const ADD_NEW_SUBCONTRACTOR = '__add_new__';
 
 export const AddExpense: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { addExpense, expenses } = useExpenses();
   const { projects } = useProjects();
   const [mode, setMode] = useState<Mode>('expense');
@@ -54,12 +54,16 @@ export const AddExpense: React.FC = () => {
   const pettyActiveMembers = pettyMembers.filter((m) => m.userId);
 
   const pettyProject = projects.find((p) => p.id === pettyProjectId);
-  const canGivePettyCash = pettyProject && user && pettyProject.ownerId === user.id;
+  const canGivePettyCash = pettyProject && user && (pettyProject.ownerId === user.id || isAdmin);
 
   // Live petty cash balance for the "Log Expense" form, for the person currently logging it.
   // This only applies to team members who receive float - not the project manager/owner.
   const selectedProject = projects.find((p) => p.id === formData.projectId);
-  const isOwnerOfSelectedProject = !!(selectedProject && user && selectedProject.ownerId === user.id);
+  const isOwnerOfSelectedProject = !!(
+    selectedProject &&
+    user &&
+    (selectedProject.ownerId === user.id || isAdmin)
+  );
 
   const { advances: myAdvances } = useCashAdvances(formData.projectId || null);
   const myFloatGiven = user
