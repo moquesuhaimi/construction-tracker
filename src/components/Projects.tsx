@@ -868,6 +868,25 @@ const ProjectHealthModal: React.FC<{
           ))}
         </div>
 
+        {rows.some((row) => row.param.action) && (
+          <div className="mt-4 pt-3 border-t border-gray-700">
+            <p className="text-xs uppercase tracking-wide text-gray-400 mb-2">Actions to take</p>
+            <div className="space-y-2">
+              {rows
+                .filter((row) => row.param.action)
+                .map((row) => (
+                  <div key={row.key} className="bg-gray-700 bg-opacity-50 rounded-lg px-3 py-2.5 flex items-start gap-2.5">
+                    <AlertCircle
+                      className="h-4 w-4 flex-shrink-0 mt-0.5"
+                      style={{ color: RAG_DOT_COLOR[row.param.status] }}
+                    />
+                    <p className="text-xs text-gray-300 leading-relaxed">{row.param.action}</p>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-700">
           <span className="text-xs text-gray-400">Health score</span>
           <span className="text-sm font-semibold text-white">{health.score === null ? '—' : `${health.score} / 100`}</span>

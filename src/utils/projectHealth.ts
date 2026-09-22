@@ -16,6 +16,9 @@ export interface ParamHealth {
   status: RagStatus;
   label: string;
   detail: string;
+  // Set only when status is watch/at_risk/critical - a concrete next step,
+  // not just a restatement of the number above.
+  action?: string;
 }
 
 export interface SubcontractorFinancials {
@@ -121,7 +124,11 @@ const calculateSchedule = (
     ? `${Math.round(variance)}% variance - past end date at ${Math.round(actualProgressPct)}% progress`
     : `${variance >= 0 ? '+' : ''}${Math.round(variance)}% variance vs expected ${Math.round(expectedProgressPct)}%`;
 
-  return { status, label, detail };
+  const action = status === 'healthy'
+    ? undefined
+    : `Expedite site progress - ${Math.round(Math.abs(variance))}% behind schedule. Follow up with the site team on what's blocking work this week.`;
+
+  return { status, label, detail, action };
 };
 
 // Note: Physical Progress (spec section 5) was originally shown as its own
@@ -164,7 +171,11 @@ const calculateCost = (
     ? `Forecast ${fmt(forecastFinalCost)} of ${fmt(budget)} budget - ${Math.round(Math.abs(variancePct))}% under`
     : `Forecast ${fmt(forecastFinalCost)} of ${fmt(budget)} budget - ${Math.round(variancePct)}% over`;
 
-  return { cost: { status, label: RAG_LABEL[status], detail }, forecastFinalCost };
+  const action = status === 'healthy'
+    ? undefined
+    : `Review remaining costs - forecast is ${Math.round(variancePct)}% over budget. Tighten spend on what's left to do.`;
+
+  return { cost: { status, label: RAG_LABEL[status], detail, action }, forecastFinalCost };
 };
 
 // L. Profitability Health (section 12) - EAC-based, generic thresholds.
@@ -189,7 +200,13 @@ const calculateProfitability = (
   else status = 'healthy';
 
   const detail = `${fmt(forecastProfit)} forecast profit (${Math.round(marginPct)}% margin)`;
-  return { status, label: RAG_LABEL[status], detail };
+  const action = status === 'healthy'
+    ? undefined
+    : marginPct < 0
+      ? `Urgent - forecast to lose ${fmt(Math.abs(forecastProfit))}. Review scope and cost control before continuing.`
+      : `Protect margin - only ${Math.round(marginPct)}% forecast. Control cost on remaining scope or discuss a variation order.`;
+
+  return { status, label: RAG_LABEL[status], detail, action };
 };
 
 // E. Commitments (section 6) - outstanding subcontractor balances relative
@@ -202,7 +219,12 @@ const calculateCommitments = (
     return { status: 'healthy', label: RAG_LABEL.healthy, detail: 'No outstanding subcontractor balances.' };
   }
   if (cashPosition <= 0) {
-    return { status: 'critical', label: RAG_LABEL.critical, detail: `${fmt(outstandingCommitments)} owed to subcontractors, no cash available.` };
+    return {
+      status: 'critical',
+      label: RAG_LABEL.critical,
+      detail: `${fmt(outstandingCommitments)} owed to subcontractors, no cash available.`,
+      action: `Cash can't cover subcontractor commitments - hold off new subcontractor work and arrange a payment plan before more falls due.`,
+    };
   }
   const ratio = (outstandingCommitments / cashPosition) * 100;
   let status: RagStatus;
@@ -210,7 +232,10 @@ const calculateCommitments = (
   else if (ratio < 100) status = 'watch';
   else if (ratio < 150) status = 'at_risk';
   else status = 'critical';
-  return { status, label: RAG_LABEL[status], detail: `${fmt(outstandingCommitments)} owed of ${fmt(cashPosition)} cash on hand` };
+  const action = status === 'healthy'
+    ? undefined
+    : `Plan subcontractor payments - ${fmt(outstandingCommitments)} owed against ${fmt(cashPosition)} on hand. Prioritise before taking on new commitments.`;
+  return { status, label: RAG_LABEL[status], detail: `${fmt(outstandingCommitments)} owed of ${fmt(cashPosition)} cash on hand`, action };
 };
 
 // C. Cashflow Health (section 4 + 11) - Cash After Commitments, combined
@@ -234,6 +259,8 @@ const calculateCashflow = (
 
   let gapDetail = '';
   let combined = baseStatus;
+  let paymentGapAmount = 0;
+  let gapIsWorseDriver = false;
 
   if (progressPct !== null && budget > 0) {
     const expectedEntitlement = getClaimableFraction(progressPct) * budget;
@@ -244,13 +271,23 @@ const calculateCashflow = (
       const gapSeverity: RagStatus = gapPct <= -20 ? 'at_risk' : gapPct <= -10 ? 'watch' : 'healthy';
       combined = worstOf(baseStatus, gapSeverity);
       gapDetail = ` · ${fmt(Math.abs(paymentGap))} behind payment schedule`;
+      paymentGapAmount = Math.abs(paymentGap);
+      gapIsWorseDriver = SEVERITY.indexOf(gapSeverity) > SEVERITY.indexOf(baseStatus);
     } else {
       gapDetail = ' · payments caught up with schedule';
     }
   }
 
   const detail = `Cash after commitments: ${fmt(cashAfterCommitments)}${gapDetail}`;
-  return { status: combined, label: RAG_LABEL[combined], detail };
+
+  let action: string | undefined;
+  if (combined !== 'healthy') {
+    action = gapIsWorseDriver
+      ? `Chase progress claim - ${fmt(paymentGapAmount)} behind what's due per the payment schedule. Follow up on the outstanding claim with the client.`
+      : `Cash is running low - ${fmt(cashAfterCommitments)} left after commitments. Avoid new commitments until more is received.`;
+  }
+
+  return { status: combined, label: RAG_LABEL[combined], detail, action };
 };
 
 // Weighted Health Score (section 8) - supporting metric only, never
