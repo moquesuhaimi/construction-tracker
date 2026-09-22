@@ -1884,7 +1884,7 @@ export const Projects: React.FC = () => {
                     </span>
                     <button
                       onClick={() => setViewingHealthFor(project)}
-                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium transition-opacity hover:opacity-80 ${RAG_BADGE_CLASSES[health.overall]}`}
+                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs lg:text-sm font-medium border-0 leading-none whitespace-nowrap transition-opacity hover:opacity-80 ${RAG_BADGE_CLASSES[health.overall]}`}
                       title="View project health"
                     >
                       {RAG_LABEL[health.overall]}
