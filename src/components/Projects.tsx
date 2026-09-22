@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, Calendar, DollarSign, Building, AlertCircle, Eye, ArrowLeft, Download, FileSpreadsheet, Users, X, Mail, Wallet, Landmark } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, DollarSign, Building, AlertCircle, Eye, ArrowLeft, Download, FileSpreadsheet, Users, X, Mail, Wallet, Landmark, BarChart3, ChevronDown, ChevronUp, HardHat } from 'lucide-react';
 import { useProjects } from '../hooks/useProjects';
 import { useExpenses } from '../hooks/useExpenses';
 import { useProjectMembers } from '../hooks/useProjectMembers';
 import { useCashAdvances } from '../hooks/useCashAdvances';
 import { useProgressPayments } from '../hooks/useProgressPayments';
+import { useSubcontractors } from '../hooks/useSubcontractors';
 import { useAuth } from '../hooks/useAuth';
 import { Project, Expense } from '../types';
-import { PROJECT_STATUSES, EXPENSE_CATEGORIES } from '../utils/constants';
+import { PROJECT_STATUSES, EXPENSE_CATEGORIES, SUBCONTRACTOR_TRADES } from '../utils/constants';
 import * as XLSX from 'xlsx';
 
 const TeamModal: React.FC<{ project: Project; onClose: () => void }> = ({ project, onClose }) => {
@@ -350,10 +351,341 @@ const PaymentsModal: React.FC<{ project: Project; totalExpenses: number; onClose
   );
 };
 
+const SubcontractorRow: React.FC<{
+  project: Project;
+  expenses: Expense[];
+  updateExpense: (id: string, updates: Partial<Expense>) => Promise<Expense | undefined>;
+}> = ({ project, expenses, updateExpense }) => {
+  const { subcontractors, addSubcontractor } = useSubcontractors(project.id);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newTrade, setNewTrade] = useState(SUBCONTRACTOR_TRADES[0]);
+  const [newContractValue, setNewContractValue] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [linkingSubId, setLinkingSubId] = useState<string | null>(null);
+  const [checkedExpenseIds, setCheckedExpenseIds] = useState<Set<string>>(new Set());
+  const [linking, setLinking] = useState(false);
+
+  const projectExpenses = expenses.filter((e) => e.projectId === project.id);
+  const unlinkedExpenses = projectExpenses.filter((e) => e.category === 'subcontractor' && !e.subcontractorId);
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim() || !newContractValue) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await addSubcontractor({ name: newName.trim(), trade: newTrade, contractValue: parseFloat(newContractValue) });
+      setNewName('');
+      setNewTrade(SUBCONTRACTOR_TRADES[0]);
+      setNewContractValue('');
+      setShowAddForm(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not add subcontractor.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const toggleChecked = (id: string) => {
+    setCheckedExpenseIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleLinkSelected = async (subId: string) => {
+    setLinking(true);
+    try {
+      for (const id of checkedExpenseIds) {
+        await updateExpense(id, { subcontractorId: subId });
+      }
+      setCheckedExpenseIds(new Set());
+      setLinkingSubId(null);
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  return (
+    <div className="border-t border-gray-700 pt-3 mt-1">
+      <div className="space-y-2">
+        {subcontractors.length === 0 && (
+          <p className="text-xs text-gray-500">No subcontractors added yet for this project.</p>
+        )}
+        {subcontractors.map((sub) => {
+          const paid = projectExpenses
+            .filter((e) => e.subcontractorId === sub.id)
+            .reduce((sum, e) => sum + e.amount, 0);
+          const remaining = sub.contractValue - paid;
+          const isExpanded = expandedId === sub.id;
+          const isLinking = linkingSubId === sub.id;
+
+          return (
+            <div key={sub.id} className="bg-gray-700 rounded-lg px-3 py-2.5">
+              <button
+                type="button"
+                onClick={() => setExpandedId(isExpanded ? null : sub.id)}
+                className="w-full flex items-center justify-between text-left"
+              >
+                <div>
+                  <p className="text-white text-sm font-medium">
+                    {sub.name} <span className="text-gray-400 font-normal">({sub.trade})</span>
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Kontrak: ${sub.contractValue.toLocaleString()} · Dibayar: ${paid.toLocaleString()} · Baki: $
+                    {remaining.toLocaleString()}
+                  </p>
+                </div>
+                {isExpanded ? (
+                  <ChevronUp className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                )}
+              </button>
+
+              {isExpanded && (
+                <div className="mt-3 pt-3 border-t border-gray-600">
+                  <div className="w-full bg-gray-600 rounded-full h-2 mb-3">
+                    <div
+                      className={`h-2 rounded-full ${remaining < 0 ? 'bg-red-500' : 'bg-green-500'}`}
+                      style={{ width: `${Math.min((paid / (sub.contractValue || 1)) * 100, 100)}%` }}
+                    />
+                  </div>
+
+                  {unlinkedExpenses.length > 0 && !isLinking && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLinkingSubId(sub.id);
+                        setCheckedExpenseIds(new Set());
+                      }}
+                      className="text-xs text-yellow-500 hover:text-yellow-400 transition-colors"
+                    >
+                      Link existing expenses ({unlinkedExpenses.length} belum di-link)...
+                    </button>
+                  )}
+
+                  {isLinking && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-400">
+                        Tick expense yang untuk "{sub.name}", lepas tu klik Link:
+                      </p>
+                      {unlinkedExpenses.map((exp) => (
+                        <label key={exp.id} className="flex items-start gap-2 text-xs bg-gray-800 rounded px-2 py-1.5">
+                          <input
+                            type="checkbox"
+                            checked={checkedExpenseIds.has(exp.id)}
+                            onChange={() => toggleChecked(exp.id)}
+                            className="mt-0.5 rounded border-gray-500 bg-gray-600 text-yellow-500 focus:ring-yellow-500"
+                          />
+                          <span className="flex-1">
+                            <span className="text-white">{exp.description}</span>
+                            <span className="text-gray-400"> - ${exp.amount.toLocaleString()} - {new Date(exp.date).toLocaleDateString()}</span>
+                          </span>
+                        </label>
+                      ))}
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          type="button"
+                          disabled={checkedExpenseIds.size === 0 || linking}
+                          onClick={() => handleLinkSelected(sub.id)}
+                          className="bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-black px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                        >
+                          {linking ? 'Linking...' : `Link ${checkedExpenseIds.size || ''}`}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setLinkingSubId(null)}
+                          className="px-3 py-1.5 rounded text-xs text-gray-300 hover:text-white transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {showAddForm ? (
+        <form onSubmit={handleAdd} className="mt-3 space-y-2 bg-gray-700 rounded-lg p-3">
+          <input
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Nama subcontractor"
+            className="w-full px-2.5 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            required
+          />
+          <div className="flex gap-2">
+            <select
+              value={newTrade}
+              onChange={(e) => setNewTrade(e.target.value)}
+              className="flex-1 px-2.5 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            >
+              {SUBCONTRACTOR_TRADES.map((trade) => (
+                <option key={trade} value={trade}>
+                  {trade}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              value={newContractValue}
+              onChange={(e) => setNewContractValue(e.target.value)}
+              placeholder="Nilai Kontrak"
+              step="0.01"
+              className="flex-1 px-2.5 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              required
+            />
+          </div>
+          {error && <p className="text-red-500 text-xs">{error}</p>}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-black px-3 py-1.5 rounded text-xs font-medium transition-colors"
+            >
+              {submitting ? 'Adding...' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAddForm(false)}
+              className="px-3 py-1.5 rounded text-xs text-gray-300 hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowAddForm(true)}
+          className="mt-3 text-xs text-yellow-500 hover:text-yellow-400 transition-colors inline-flex items-center gap-1"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add New Subcontractor
+        </button>
+      )}
+    </div>
+  );
+};
+
+const SummaryModal: React.FC<{
+  project: Project;
+  expenses: Expense[];
+  updateExpense: (id: string, updates: Partial<Expense>) => Promise<Expense | undefined>;
+  onClose: () => void;
+}> = ({ project, expenses, updateExpense, onClose }) => {
+  const [subcontractorExpanded, setSubcontractorExpanded] = useState(false);
+
+  const projectExpenses = expenses.filter((e) => e.projectId === project.id);
+  const totalSpent = projectExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+  const categoryTotals = EXPENSE_CATEGORIES.map((cat) => ({
+    ...cat,
+    total: projectExpenses.filter((e) => e.category === cat.id).reduce((sum, e) => sum + e.amount, 0),
+  })).filter((cat) => cat.total > 0);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+      <div className="bg-gray-800 rounded-lg p-4 lg:p-6 max-w-2xl w-full border border-gray-700 my-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-base lg:text-lg font-semibold text-white">Summary - {project.name}</h3>
+            <p className="text-xs text-gray-400">Total expenses by category, and subcontractor contract tracking.</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          {categoryTotals.length === 0 && (
+            <p className="text-gray-400 text-sm text-center py-4">No expenses recorded for this project yet.</p>
+          )}
+          {categoryTotals.map((cat) => (
+            <div key={cat.id}>
+              <div
+                className={`bg-gray-700 rounded-lg px-3 py-2.5 flex items-center justify-between ${
+                  cat.id === 'subcontractor' ? 'cursor-pointer hover:bg-gray-600' : ''
+                }`}
+                onClick={cat.id === 'subcontractor' ? () => setSubcontractorExpanded((v) => !v) : undefined}
+              >
+                <div className="flex items-center gap-2">
+                  {cat.id === 'subcontractor' && <HardHat className="h-4 w-4 text-gray-400" />}
+                  <span className="text-white text-sm font-medium">{cat.name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-white text-sm font-semibold">${cat.total.toLocaleString()}</span>
+                  {cat.id === 'subcontractor' &&
+                    (subcontractorExpanded ? (
+                      <ChevronUp className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-gray-400" />
+                    ))}
+                </div>
+              </div>
+
+              {cat.id === 'subcontractor' && subcontractorExpanded && (
+                <SubcontractorRow project={project} expenses={expenses} updateExpense={updateExpense} />
+              )}
+            </div>
+          ))}
+
+          {/* If there are subcontractor expenses but the category row was filtered out (shouldn't
+              normally happen since total > 0 implies a row exists), or the category simply has no
+              spend yet but the owner wants to set up a subcontractor ahead of time. */}
+          {categoryTotals.every((c) => c.id !== 'subcontractor') && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setSubcontractorExpanded((v) => !v)}
+                className="w-full bg-gray-700 rounded-lg px-3 py-2.5 flex items-center justify-between hover:bg-gray-600 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <HardHat className="h-4 w-4 text-gray-400" />
+                  <span className="text-white text-sm font-medium">Subcontractor</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400 text-sm">$0</span>
+                  {subcontractorExpanded ? (
+                    <ChevronUp className="h-4 w-4 text-gray-400" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-gray-400" />
+                  )}
+                </div>
+              </button>
+              {subcontractorExpanded && (
+                <SubcontractorRow project={project} expenses={expenses} updateExpense={updateExpense} />
+              )}
+            </div>
+          )}
+
+          {categoryTotals.length > 0 && (
+            <div className="border-t border-gray-700 mt-3 pt-3 flex items-center justify-between">
+              <span className="text-gray-300 text-sm font-medium">Total Spent</span>
+              <span className="text-white text-base font-bold">${totalSpent.toLocaleString()}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const Projects: React.FC = () => {
   const { user } = useAuth();
   const { projects, addProject, updateProject, deleteProject } = useProjects();
-  const { expenses, deleteExpense, fetchReceiptImage } = useExpenses();
+  const { expenses, deleteExpense, fetchReceiptImage, updateExpense } = useExpenses();
   const [loadingReceiptId, setLoadingReceiptId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -361,6 +693,7 @@ export const Projects: React.FC = () => {
   const [managingTeamFor, setManagingTeamFor] = useState<Project | null>(null);
   const [managingCashFor, setManagingCashFor] = useState<Project | null>(null);
   const [managingPaymentsFor, setManagingPaymentsFor] = useState<Project | null>(null);
+  const [viewingSummaryFor, setViewingSummaryFor] = useState<Project | null>(null);
   const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const { totalReceived: viewingProjectReceived } = useProgressPayments(viewingProjectExpenses);
@@ -1075,6 +1408,13 @@ export const Projects: React.FC = () => {
                         <Landmark className="h-4 w-4" />
                       </button>
                       <button
+                        onClick={() => setViewingSummaryFor(project)}
+                        className="text-gray-400 hover:text-yellow-500 transition-colors"
+                        title="Summary"
+                      >
+                        <BarChart3 className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => handleEdit(project)}
                         className="text-gray-400 hover:text-yellow-500 transition-colors"
                       >
@@ -1172,6 +1512,15 @@ export const Projects: React.FC = () => {
           project={managingPaymentsFor}
           totalExpenses={getProjectExpenses(managingPaymentsFor.id)}
           onClose={() => setManagingPaymentsFor(null)}
+        />
+      )}
+
+      {viewingSummaryFor && (
+        <SummaryModal
+          project={viewingSummaryFor}
+          expenses={expenses}
+          updateExpense={updateExpense}
+          onClose={() => setViewingSummaryFor(null)}
         />
       )}
     </div>

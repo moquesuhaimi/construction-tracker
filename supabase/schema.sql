@@ -153,7 +153,42 @@ create policy "Only the owner can update team member access"
   to authenticated
   using (public.is_project_owner(project_id));
 
--- 4. Expenses --------------------------------------------------------------
+-- 4. Subcontractors (per-project contract tracking) -----------------------
+-- Each subcontractor belongs to one project and has an agreed contract
+-- value. Expenses in the "subcontractor" category link here so we can show
+-- how much has been paid against that contract without manual filtering.
+create table if not exists public.subcontractors (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects (id) on delete cascade,
+  name text not null,
+  trade text not null default 'Civil Work',
+  contract_value numeric not null default 0,
+  created_at timestamptz not null default now()
+);
+
+alter table public.subcontractors enable row level security;
+
+create policy "See subcontractors for projects you can access"
+  on public.subcontractors for select
+  to authenticated
+  using (public.has_project_access(project_id));
+
+create policy "Add subcontractors to projects you can access"
+  on public.subcontractors for insert
+  to authenticated
+  with check (public.has_project_access(project_id));
+
+create policy "Only the owner can edit subcontractors"
+  on public.subcontractors for update
+  to authenticated
+  using (public.is_project_owner(project_id));
+
+create policy "Only the owner can delete subcontractors"
+  on public.subcontractors for delete
+  to authenticated
+  using (public.is_project_owner(project_id));
+
+-- 5. Expenses --------------------------------------------------------------
 create table if not exists public.expenses (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references public.projects (id) on delete cascade,
@@ -165,6 +200,7 @@ create table if not exists public.expenses (
   receipt text,
   receipt_image text,
   has_receipt_image boolean generated always as (receipt_image is not null) stored,
+  subcontractor_id uuid references public.subcontractors (id) on delete set null,
   created_at timestamptz not null default now()
 );
 
@@ -190,7 +226,7 @@ create policy "Delete your own expenses, or any expense if you own the project"
   to authenticated
   using (user_id = auth.uid() or public.is_project_owner(project_id));
 
--- 5. Cash advances (petty cash / float given to a team member) ------------
+-- 6. Cash advances (petty cash / float given to a team member) ------------
 -- These are NOT expenses. They track money handed to someone so they can
 -- buy things for the project. The actual purchase they make gets logged as
 -- a normal expense; the advance just lets the owner see how much float is
@@ -230,7 +266,7 @@ create policy "Only the owner can delete cash advances"
   to authenticated
   using (public.is_project_owner(project_id));
 
--- 6. Cash advance "read" tracking (for in-app notifications) ---------------
+-- 7. Cash advance "read" tracking (for in-app notifications) ---------------
 -- A separate table so the recipient can mark an advance as seen without
 -- needing update rights on the advance ledger itself.
 create table if not exists public.cash_advance_reads (
@@ -260,7 +296,7 @@ create policy "Recipient and owner can see read status"
     )
   );
 
--- 7. Progress payments (cash actually received from the client) -----------
+-- 8. Progress payments (cash actually received from the client) -----------
 -- The project's "budget" is the contract value, which is not the same as
 -- cash on hand - clients pay in stages. This table tracks each payment
 -- received so the owner can see real cash position, not just budget usage.
@@ -304,9 +340,11 @@ create policy "Only the owner can delete progress payments"
   to authenticated
   using (public.is_project_owner(project_id));
 
--- 8. Helpful indexes ---------------------------------------------------------
+-- 9. Helpful indexes ---------------------------------------------------------
 create index if not exists idx_expenses_project_id on public.expenses (project_id);
 create index if not exists idx_expenses_user_id on public.expenses (user_id);
+create index if not exists idx_expenses_subcontractor_id on public.expenses (subcontractor_id);
+create index if not exists idx_subcontractors_project_id on public.subcontractors (project_id);
 create index if not exists idx_project_members_project_id on public.project_members (project_id);
 create index if not exists idx_project_members_email on public.project_members (email);
 create index if not exists idx_cash_advances_project_id on public.cash_advances (project_id);

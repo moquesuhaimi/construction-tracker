@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { Plus, Receipt, Calendar, DollarSign, Building, Camera, Eye, Wallet, ClipboardList, X } from 'lucide-react';
+import { Plus, Receipt, Calendar, DollarSign, Building, Camera, Eye, Wallet, ClipboardList, X, HardHat } from 'lucide-react';
 import { useExpenses } from '../hooks/useExpenses';
 import { useProjects } from '../hooks/useProjects';
 import { useProjectMembers } from '../hooks/useProjectMembers';
 import { useCashAdvances } from '../hooks/useCashAdvances';
+import { useSubcontractors } from '../hooks/useSubcontractors';
 import { useAuth } from '../hooks/useAuth';
-import { EXPENSE_CATEGORIES } from '../utils/constants';
+import { EXPENSE_CATEGORIES, SUBCONTRACTOR_TRADES } from '../utils/constants';
 import { ReceiptUpload } from './ReceiptUpload';
 
 type Mode = 'expense' | 'petty-cash';
+const ADD_NEW_SUBCONTRACTOR = '__add_new__';
 
 export const AddExpense: React.FC = () => {
   const { user } = useAuth();
@@ -23,11 +25,21 @@ export const AddExpense: React.FC = () => {
     amount: '',
     date: new Date().toISOString().split('T')[0],
     receipt: '',
+    subcontractorId: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showReceiptUpload, setShowReceiptUpload] = useState(false);
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
   const [showFullReceipt, setShowFullReceipt] = useState(false);
+
+  // Subcontractor selection - required when category is "subcontractor"
+  const { subcontractors, addSubcontractor } = useSubcontractors(formData.projectId || null);
+  const [showAddSubcontractor, setShowAddSubcontractor] = useState(false);
+  const [newSubName, setNewSubName] = useState('');
+  const [newSubTrade, setNewSubTrade] = useState(SUBCONTRACTOR_TRADES[0]);
+  const [newSubContractValue, setNewSubContractValue] = useState('');
+  const [subSubmitting, setSubSubmitting] = useState(false);
+  const [subError, setSubError] = useState<string | null>(null);
 
   // Petty cash form state
   const [pettyProjectId, setPettyProjectId] = useState('');
@@ -70,6 +82,11 @@ export const AddExpense: React.FC = () => {
       return;
     }
 
+    if (formData.category === 'subcontractor' && !formData.subcontractorId) {
+      alert('Please select which subcontractor this payment is for.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -81,6 +98,7 @@ export const AddExpense: React.FC = () => {
         date: formData.date,
         receipt: formData.receipt.trim() || undefined,
         receiptImage: receiptImage || undefined,
+        subcontractorId: formData.category === 'subcontractor' ? formData.subcontractorId : undefined,
       });
 
       setReceiptImage(null);
@@ -93,6 +111,7 @@ export const AddExpense: React.FC = () => {
         amount: '',
         date: new Date().toISOString().split('T')[0],
         receipt: '',
+        subcontractorId: '',
       });
 
       alert('Expense added successfully!');
@@ -131,6 +150,39 @@ export const AddExpense: React.FC = () => {
       alert(error instanceof Error ? error.message : 'Error recording cash advance. Please try again.');
     } finally {
       setPettySubmitting(false);
+    }
+  };
+
+  const handleSubcontractorSelect = (value: string) => {
+    if (value === ADD_NEW_SUBCONTRACTOR) {
+      setNewSubName('');
+      setNewSubTrade(SUBCONTRACTOR_TRADES[0]);
+      setNewSubContractValue('');
+      setSubError(null);
+      setShowAddSubcontractor(true);
+      return;
+    }
+    setFormData((prev) => ({ ...prev, subcontractorId: value }));
+  };
+
+  const handleAddSubcontractor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSubName.trim() || !newSubContractValue) return;
+
+    setSubError(null);
+    setSubSubmitting(true);
+    try {
+      const created = await addSubcontractor({
+        name: newSubName.trim(),
+        trade: newSubTrade,
+        contractValue: parseFloat(newSubContractValue),
+      });
+      setFormData((prev) => ({ ...prev, subcontractorId: created.id }));
+      setShowAddSubcontractor(false);
+    } catch (err) {
+      setSubError(err instanceof Error ? err.message : 'Could not add subcontractor.');
+    } finally {
+      setSubSubmitting(false);
     }
   };
 
@@ -215,7 +267,7 @@ export const AddExpense: React.FC = () => {
                     <button
                       key={category.id}
                       type="button"
-                      onClick={() => setFormData({ ...formData, category: category.id })}
+                      onClick={() => setFormData({ ...formData, category: category.id, subcontractorId: '' })}
                       className={`p-2 lg:p-3 rounded-lg border transition-colors text-left ${
                         formData.category === category.id
                           ? 'border-yellow-500 bg-yellow-500 bg-opacity-20 text-yellow-500'
@@ -229,6 +281,33 @@ export const AddExpense: React.FC = () => {
                   ))}
                 </div>
               </div>
+
+              {/* Subcontractor Selection - required for the Subcontractor category */}
+              {formData.category === 'subcontractor' && (
+                <div>
+                  <label className="block text-xs lg:text-sm font-medium text-gray-300 mb-2">
+                    <HardHat className="h-4 w-4 inline mr-2" />
+                    Subcontractor *
+                  </label>
+                  <select
+                    value={formData.subcontractorId}
+                    onChange={(e) => handleSubcontractorSelect(e.target.value)}
+                    className="w-full px-3 py-2 lg:py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm lg:text-base"
+                    required
+                  >
+                    <option value="">Select subcontractor</option>
+                    {subcontractors.map((sub) => (
+                      <option key={sub.id} value={sub.id}>
+                        {sub.name} ({sub.trade})
+                      </option>
+                    ))}
+                    <option value={ADD_NEW_SUBCONTRACTOR}>+ Add New Subcontractor</option>
+                  </select>
+                  {!formData.projectId && (
+                    <p className="text-xs text-gray-500 mt-1">Select a project first.</p>
+                  )}
+                </div>
+              )}
 
               {/* Amount and Date */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -383,6 +462,82 @@ export const AddExpense: React.FC = () => {
               </button>
             </form>
           </div>
+
+          {/* Add New Subcontractor Modal */}
+          {showAddSubcontractor && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+              <div className="bg-gray-800 rounded-lg p-4 lg:p-6 max-w-md w-full border border-gray-700">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base lg:text-lg font-semibold text-white">Add New Subcontractor</h3>
+                  <button
+                    onClick={() => setShowAddSubcontractor(false)}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleAddSubcontractor} className="space-y-4">
+                  <div>
+                    <label className="block text-xs lg:text-sm font-medium text-gray-300 mb-2">
+                      Subcontractor Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={newSubName}
+                      onChange={(e) => setNewSubName(e.target.value)}
+                      placeholder="e.g. Ali Plumbing"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs lg:text-sm font-medium text-gray-300 mb-2">Trade</label>
+                    <select
+                      value={newSubTrade}
+                      onChange={(e) => setNewSubTrade(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
+                    >
+                      {SUBCONTRACTOR_TRADES.map((trade) => (
+                        <option key={trade} value={trade}>
+                          {trade}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs lg:text-sm font-medium text-gray-300 mb-2">
+                      Contract Value (RM) *
+                    </label>
+                    <input
+                      type="number"
+                      value={newSubContractValue}
+                      onChange={(e) => setNewSubContractValue(e.target.value)}
+                      placeholder="0.00"
+                      step="0.01"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      The agreed total sub value - so this app can track what's paid vs left owing.
+                    </p>
+                  </div>
+
+                  {subError && <p className="text-red-500 text-sm">{subError}</p>}
+
+                  <button
+                    type="submit"
+                    disabled={subSubmitting}
+                    className="w-full bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-black px-4 py-2.5 rounded-lg font-medium transition-colors text-sm"
+                  >
+                    {subSubmitting ? 'Adding...' : 'Add Subcontractor'}
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
 
           {/* Receipt Upload Modal */}
           {showReceiptUpload && (

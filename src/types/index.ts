@@ -55,6 +55,16 @@ export interface Expense {
   receipt?: string;
   receiptImage?: string;
   hasReceiptImage?: boolean;
+  subcontractorId?: string;
+  createdAt: string;
+}
+
+export interface Subcontractor {
+  id: string;
+  projectId: string;
+  name: string;
+  trade: string;
+  contractValue: number;
   createdAt: string;
 }
 

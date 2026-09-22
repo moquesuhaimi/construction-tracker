@@ -19,6 +19,8 @@ export const PROJECT_STATUSES = [
   { id: 'on-hold', name: 'On Hold', color: 'bg-yellow-500' },
 ];
 
+export const SUBCONTRACTOR_TRADES = ['Civil Work', 'Plumbing', 'Tiling', 'Electrical', 'Iron Work'];
+
 export const PERIOD_FILTERS = [
   { id: 'week', name: 'This Week' },
   { id: 'month', name: 'This Month' },

@@ -14,6 +14,7 @@ type ExpenseRow = {
   receipt: string | null;
   receipt_image?: string | null;
   has_receipt_image: boolean;
+  subcontractor_id: string | null;
   created_at: string;
   profiles?: { name: string } | { name: string }[] | null;
 };
@@ -21,7 +22,8 @@ type ExpenseRow = {
 // Every expense row EXCEPT receipt_image - that column can be several MB of
 // base64 text per row, so it's never included when fetching the whole list.
 // It's fetched on-demand (see fetchReceiptImage) only when someone opens it.
-const LIST_COLUMNS = 'id, project_id, user_id, category, description, amount, date, receipt, has_receipt_image, created_at';
+const LIST_COLUMNS =
+  'id, project_id, user_id, category, description, amount, date, receipt, has_receipt_image, subcontractor_id, created_at';
 
 const fromRow = (row: ExpenseRow): Expense => {
   const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
@@ -37,6 +39,7 @@ const fromRow = (row: ExpenseRow): Expense => {
     receipt: row.receipt ?? undefined,
     receiptImage: row.receipt_image ?? undefined,
     hasReceiptImage: row.has_receipt_image,
+    subcontractorId: row.subcontractor_id ?? undefined,
     createdAt: row.created_at,
   };
 };
@@ -107,6 +110,7 @@ export const useExpenses = () => {
         date: expense.date,
         receipt: expense.receipt || null,
         receipt_image: expense.receiptImage || null,
+        subcontractor_id: expense.subcontractorId || null,
       })
       .select('*, profiles ( name )')
       .single();
@@ -127,6 +131,7 @@ export const useExpenses = () => {
         ...(updates.date !== undefined && { date: updates.date }),
         ...(updates.receipt !== undefined && { receipt: updates.receipt || null }),
         ...(updates.receiptImage !== undefined && { receipt_image: updates.receiptImage || null }),
+        ...(updates.subcontractorId !== undefined && { subcontractor_id: updates.subcontractorId || null }),
       })
       .eq('id', id);
 
