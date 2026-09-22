@@ -830,7 +830,6 @@ const ProjectHealthModal: React.FC<{
     { key: 'schedule', label: 'Schedule', param: health.schedule },
     { key: 'cost', label: 'Cost', param: health.cost },
     { key: 'cashflow', label: 'Cashflow', param: health.cashflow },
-    { key: 'progress', label: 'Physical progress', param: health.progress },
     { key: 'profitability', label: 'Profitability', param: health.profitability },
     { key: 'commitments', label: 'Commitments', param: health.commitments },
     { key: 'riskIssues', label: 'Risk / issues', param: health.riskIssues },
@@ -1885,7 +1884,7 @@ export const Projects: React.FC = () => {
                     </span>
                     <button
                       onClick={() => setViewingHealthFor(project)}
-                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs lg:text-sm font-medium border-0 leading-none transition-opacity hover:opacity-80 ${RAG_BADGE_CLASSES[health.overall]}`}
+                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium transition-opacity hover:opacity-80 ${RAG_BADGE_CLASSES[health.overall]}`}
                       title="View project health"
                     >
                       {RAG_LABEL[health.overall]}

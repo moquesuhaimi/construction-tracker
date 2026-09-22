@@ -38,7 +38,6 @@ export interface ProjectHealthResult {
   schedule: ParamHealth;
   cost: ParamHealth;
   cashflow: ParamHealth;
-  progress: ParamHealth;
   profitability: ParamHealth;
   commitments: ParamHealth;
   riskIssues: ParamHealth;
@@ -91,12 +90,9 @@ const calculateSchedule = (
   startDate: string | null | undefined,
   endDate: string | null | undefined,
   actualProgressPct: number | null
-): { schedule: ParamHealth; expectedProgressPct: number | null } => {
+): ParamHealth => {
   if (!startDate || !endDate || actualProgressPct === null) {
-    return {
-      schedule: { status: 'insufficient_data', label: RAG_LABEL.insufficient_data, detail: 'Needs start date, end date and site progress.' },
-      expectedProgressPct: null,
-    };
+    return { status: 'insufficient_data', label: RAG_LABEL.insufficient_data, detail: 'Needs start date, end date and site progress.' };
   }
 
   const start = new Date(startDate).getTime();
@@ -105,10 +101,7 @@ const calculateSchedule = (
   const totalDuration = end - start;
 
   if (!(totalDuration > 0)) {
-    return {
-      schedule: { status: 'insufficient_data', label: RAG_LABEL.insufficient_data, detail: 'End date must be after start date.' },
-      expectedProgressPct: null,
-    };
+    return { status: 'insufficient_data', label: RAG_LABEL.insufficient_data, detail: 'End date must be after start date.' };
   }
 
   const elapsed = Math.max(0, now - start);
@@ -128,31 +121,15 @@ const calculateSchedule = (
     ? `${Math.round(variance)}% variance - past end date at ${Math.round(actualProgressPct)}% progress`
     : `${variance >= 0 ? '+' : ''}${Math.round(variance)}% variance vs expected ${Math.round(expectedProgressPct)}%`;
 
-  return { schedule: { status, label, detail }, expectedProgressPct };
+  return { status, label, detail };
 };
 
-// D. Physical Progress (section 5) - linked to Schedule variance to avoid a
-// second, independent judgment call; kept as its own row per spec, but not
-// double-weighted in the score (see WEIGHTS below).
-const calculateProgress = (
-  actualProgressPct: number | null,
-  expectedProgressPct: number | null
-): ParamHealth => {
-  if (actualProgressPct === null || expectedProgressPct === null) {
-    return { status: 'insufficient_data', label: RAG_LABEL.insufficient_data, detail: 'Needs site progress and schedule dates.' };
-  }
-  const behind = expectedProgressPct - actualProgressPct;
-  let status: RagStatus;
-  if (behind <= 0) status = 'healthy';
-  else if (behind <= 10) status = 'watch';
-  else if (behind <= 20) status = 'at_risk';
-  else status = 'critical';
-  return {
-    status,
-    label: RAG_LABEL[status],
-    detail: behind <= 0 ? `${Math.round(actualProgressPct)}% - on or ahead of schedule` : `${Math.round(behind)}% behind expected progress`,
-  };
-};
+// Note: Physical Progress (spec section 5) was originally shown as its own
+// row, linked directly to Schedule variance (same underlying numbers). Since
+// it always mirrored Schedule almost exactly, it read as redundant in the
+// UI and was double-weighted in the score - merged into Schedule below.
+// If a future Baseline Schedule / EVM module gives Physical Progress an
+// independent data source, it can be reintroduced as its own parameter.
 
 // B. Cost Health (section 3) - Forecast Final Cost vs Contract Budget.
 // Forecast = non-subcontractor spend extrapolated by progress, plus the full
@@ -289,10 +266,9 @@ const SCORE_VALUE: Record<RagStatus, number> = {
 };
 
 const WEIGHTS = {
-  schedule: 25,
+  schedule: 35,
   cost: 20,
   cashflow: 20,
-  progress: 10,
   profitability: 20,
   commitments: 5,
 };
@@ -316,7 +292,6 @@ const buildExplanation = (result: Omit<ProjectHealthResult, 'explanation'>): str
     ['schedule', result.schedule],
     ['cost', result.cost],
     ['cashflow', result.cashflow],
-    ['progress', result.progress],
     ['profitability', result.profitability],
     ['commitments', result.commitments],
   ];
@@ -343,8 +318,7 @@ export const calculateProjectHealth = (input: ProjectHealthInput): ProjectHealth
   );
   const cashPosition = input.received - input.totalSpent;
 
-  const { schedule, expectedProgressPct } = calculateSchedule(input.startDate, input.endDate, input.siteProgressPct);
-  const progress = calculateProgress(input.siteProgressPct, expectedProgressPct);
+  const schedule = calculateSchedule(input.startDate, input.endDate, input.siteProgressPct);
   const { cost, forecastFinalCost } = calculateCost(
     input.budget,
     input.totalSpent,
@@ -367,19 +341,18 @@ export const calculateProjectHealth = (input: ProjectHealthInput): ProjectHealth
     detail: 'No risk or issue log recorded for this project.',
   };
 
-  const overall = [schedule, cost, cashflow, progress, profitability, commitments].reduce(
+  const overall = [schedule, cost, cashflow, profitability, commitments].reduce(
     (worst, param) => worstOf(worst, param.status),
     'healthy' as RagStatus
   );
 
-  const score = calculateScore({ schedule, cost, cashflow, progress, profitability, commitments });
+  const score = calculateScore({ schedule, cost, cashflow, profitability, commitments });
 
   const base: Omit<ProjectHealthResult, 'explanation'> = {
     overall,
     schedule,
     cost,
     cashflow,
-    progress,
     profitability,
     commitments,
     riskIssues,
