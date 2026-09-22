@@ -811,6 +811,259 @@ const SummaryModal: React.FC<{
   );
 };
 
+const ADD_NEW_SUBCONTRACTOR = '__add_new__';
+
+const EditExpenseModal: React.FC<{
+  project: Project;
+  expense: Expense;
+  updateExpense: (id: string, updates: Partial<Expense>) => Promise<Expense | undefined>;
+  onClose: () => void;
+}> = ({ project, expense, updateExpense, onClose }) => {
+  const { subcontractors, addSubcontractor } = useSubcontractors(project.id);
+  const [category, setCategory] = useState(expense.category);
+  const [description, setDescription] = useState(expense.description);
+  const [amount, setAmount] = useState(expense.amount.toString());
+  const [date, setDate] = useState(expense.date);
+  const [receipt, setReceipt] = useState(expense.receipt || '');
+  const [subcontractorId, setSubcontractorId] = useState(expense.subcontractorId || '');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [showAddSub, setShowAddSub] = useState(false);
+  const [newSubName, setNewSubName] = useState('');
+  const [newSubTrade, setNewSubTrade] = useState(SUBCONTRACTOR_TRADES[0]);
+  const [newSubContractValue, setNewSubContractValue] = useState('');
+  const [subSubmitting, setSubSubmitting] = useState(false);
+
+  const handleSubcontractorSelect = (value: string) => {
+    if (value === ADD_NEW_SUBCONTRACTOR) {
+      setNewSubName('');
+      setNewSubTrade(SUBCONTRACTOR_TRADES[0]);
+      setNewSubContractValue('');
+      setShowAddSub(true);
+      return;
+    }
+    setSubcontractorId(value);
+  };
+
+  const handleAddSub = async () => {
+    if (!newSubName.trim() || !newSubContractValue) return;
+    setSubSubmitting(true);
+    setError(null);
+    try {
+      const created = await addSubcontractor({
+        name: newSubName.trim(),
+        trade: newSubTrade,
+        contractValue: parseFloat(newSubContractValue),
+      });
+      setSubcontractorId(created.id);
+      setShowAddSub(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not add subcontractor.');
+    } finally {
+      setSubSubmitting(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!description.trim() || !amount || !date || !category) {
+      setError('Please fill in all required fields.');
+      return;
+    }
+    if (category === 'subcontractor' && !subcontractorId) {
+      setError('Please select which subcontractor this payment is for.');
+      return;
+    }
+
+    setError(null);
+    setSubmitting(true);
+    try {
+      await updateExpense(expense.id, {
+        category,
+        description: description.trim(),
+        amount: parseFloat(amount),
+        date,
+        receipt: receipt.trim() || undefined,
+        subcontractorId: category === 'subcontractor' ? subcontractorId : undefined,
+      });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update expense.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+      <div className="bg-gray-800 rounded-lg p-4 lg:p-6 max-w-lg w-full border border-gray-700 my-8">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base lg:text-lg font-semibold text-white">Edit Expense</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs lg:text-sm font-medium text-gray-300 mb-2">Category *</label>
+            <select
+              value={category}
+              onChange={(e) => {
+                setCategory(e.target.value);
+                if (e.target.value !== 'subcontractor') setSubcontractorId('');
+              }}
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              required
+            >
+              {EXPENSE_CATEGORIES.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {category === 'subcontractor' && (
+            <div>
+              <label className="block text-xs lg:text-sm font-medium text-gray-300 mb-2">Subcontractor *</label>
+              <select
+                value={subcontractorId}
+                onChange={(e) => handleSubcontractorSelect(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                required
+              >
+                <option value="">Select subcontractor</option>
+                {subcontractors.map((sub) => (
+                  <option key={sub.id} value={sub.id}>
+                    {sub.name} ({sub.trade})
+                  </option>
+                ))}
+                <option value={ADD_NEW_SUBCONTRACTOR}>+ Add New Subcontractor</option>
+              </select>
+            </div>
+          )}
+
+          {showAddSub && (
+            <div className="bg-gray-700 rounded-lg p-3 space-y-2">
+              <input
+                type="text"
+                value={newSubName}
+                onChange={(e) => setNewSubName(e.target.value)}
+                placeholder="Subcontractor Name"
+                className="w-full px-2.5 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              />
+              <div className="flex gap-2">
+                <select
+                  value={newSubTrade}
+                  onChange={(e) => setNewSubTrade(e.target.value)}
+                  className="flex-1 px-2.5 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                >
+                  {SUBCONTRACTOR_TRADES.map((trade) => (
+                    <option key={trade} value={trade}>
+                      {trade}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  value={newSubContractValue}
+                  onChange={(e) => setNewSubContractValue(e.target.value)}
+                  placeholder="Subcontract Amount"
+                  step="0.01"
+                  className="flex-1 px-2.5 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleAddSub}
+                  disabled={subSubmitting}
+                  className="bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-black px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                >
+                  {subSubmitting ? 'Adding...' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddSub(false)}
+                  className="px-3 py-1.5 rounded text-xs text-gray-300 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs lg:text-sm font-medium text-gray-300 mb-2">Description *</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs lg:text-sm font-medium text-gray-300 mb-2">Amount *</label>
+              <input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                step="0.01"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs lg:text-sm font-medium text-gray-300 mb-2">Date *</label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs lg:text-sm font-medium text-gray-300 mb-2">Receipt Number (Optional)</label>
+            <input
+              type="text"
+              value={receipt}
+              onChange={(e) => setReceipt(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            />
+          </div>
+
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-black px-4 py-2.5 rounded-lg font-medium transition-colors text-sm"
+            >
+              {submitting ? 'Saving...' : 'Save Changes'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 rounded-lg text-gray-300 hover:text-white transition-colors text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 export const Projects: React.FC = () => {
   const { user, isAdmin } = useAuth();
   // App admin (the app's maintainer) gets owner-level access on every
@@ -828,6 +1081,7 @@ export const Projects: React.FC = () => {
   const [viewingSummaryFor, setViewingSummaryFor] = useState<Project | null>(null);
   const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const { totalReceived: viewingProjectReceived } = useProgressPayments(viewingProjectExpenses);
   const { members: viewingProjectMembers } = useProjectMembers(viewingProjectExpenses);
   const { advances: viewingProjectAdvances } = useCashAdvances(viewingProjectExpenses);
@@ -1306,7 +1560,16 @@ export const Projects: React.FC = () => {
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-lg lg:text-2xl font-bold text-white">${expense.amount.toLocaleString()}</p>
-                      <div className="flex justify-end mt-2">
+                      <div className="flex justify-end gap-1 mt-2">
+                        {(expense.userId === user?.id || isOwnerOf(project)) && (
+                          <button
+                            onClick={() => setEditingExpense(expense)}
+                            className="text-gray-400 hover:text-yellow-500 transition-colors p-1"
+                            title="Edit expense"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDeleteExpense(expense)}
                           className="text-gray-400 hover:text-red-500 transition-colors p-1"
@@ -1356,6 +1619,15 @@ export const Projects: React.FC = () => {
               />
             </div>
           </div>
+        )}
+
+        {editingExpense && (
+          <EditExpenseModal
+            project={project}
+            expense={editingExpense}
+            updateExpense={updateExpense}
+            onClose={() => setEditingExpense(null)}
+          />
         )}
       </div>
     );
