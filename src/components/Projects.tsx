@@ -6,6 +6,7 @@ import { useProjectMembers } from '../hooks/useProjectMembers';
 import { useCashAdvances } from '../hooks/useCashAdvances';
 import { useProgressPayments } from '../hooks/useProgressPayments';
 import { useSubcontractors } from '../hooks/useSubcontractors';
+import { useProjectProgress } from '../hooks/useProjectProgress';
 import { useAuth } from '../hooks/useAuth';
 import { Project, Expense } from '../types';
 import { PROJECT_STATUSES, EXPENSE_CATEGORIES, SUBCONTRACTOR_TRADES } from '../utils/constants';
@@ -1069,6 +1070,7 @@ export const Projects: React.FC = () => {
   // App admin (the app's maintainer) gets owner-level access on every
   // project, not just ones they personally created.
   const isOwnerOf = (project: Project) => project.ownerId === user?.id || isAdmin;
+  const { getProgressForProject } = useProjectProgress();
   const { projects, addProject, updateProject, deleteProject } = useProjects();
   const { expenses, deleteExpense, fetchReceiptImage, updateExpense } = useExpenses();
   const [loadingReceiptId, setLoadingReceiptId] = useState<string | null>(null);
@@ -1866,6 +1868,28 @@ export const Projects: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {(() => {
+                  const siteProgress = getProgressForProject(project.name);
+                  if (siteProgress === null) return null;
+                  return (
+                    <div className="flex items-center gap-3">
+                      <HardHat className="h-4 w-4 text-gray-400" />
+                      <div className="flex-1">
+                        <div className="flex justify-between text-xs lg:text-sm">
+                          <span className="text-gray-300">Site Progress</span>
+                          <span className="font-medium text-blue-400 text-xs lg:text-sm">{siteProgress}%</span>
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-2 mt-1">
+                          <div
+                            className="h-2 rounded-full bg-blue-500"
+                            style={{ width: `${Math.min(siteProgress, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {project.startDate && (
                   <div className="flex items-center gap-3">
