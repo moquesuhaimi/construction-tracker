@@ -7,9 +7,18 @@ import { useCashAdvances } from '../hooks/useCashAdvances';
 import { useProgressPayments } from '../hooks/useProgressPayments';
 import { useSubcontractors } from '../hooks/useSubcontractors';
 import { useProjectProgress } from '../hooks/useProjectProgress';
+import { useProjectFinancials } from '../hooks/useProjectFinancials';
 import { useAuth } from '../hooks/useAuth';
 import { Project, Expense } from '../types';
 import { PROJECT_STATUSES, EXPENSE_CATEGORIES, SUBCONTRACTOR_TRADES } from '../utils/constants';
+import {
+  calculateProjectHealth,
+  RAG_LABEL,
+  RAG_DOT_COLOR,
+  RAG_BADGE_CLASSES,
+  ProjectHealthResult,
+  ParamHealth,
+} from '../utils/projectHealth';
 import * as XLSX from 'xlsx';
 
 const TeamModal: React.FC<{ project: Project; onClose: () => void }> = ({ project, onClose }) => {
@@ -812,6 +821,65 @@ const SummaryModal: React.FC<{
   );
 };
 
+const ProjectHealthModal: React.FC<{
+  project: Project;
+  health: ProjectHealthResult;
+  onClose: () => void;
+}> = ({ project, health, onClose }) => {
+  const rows: { key: string; label: string; param: ParamHealth }[] = [
+    { key: 'schedule', label: 'Schedule', param: health.schedule },
+    { key: 'cost', label: 'Cost', param: health.cost },
+    { key: 'cashflow', label: 'Cashflow', param: health.cashflow },
+    { key: 'progress', label: 'Physical progress', param: health.progress },
+    { key: 'profitability', label: 'Profitability', param: health.profitability },
+    { key: 'commitments', label: 'Commitments', param: health.commitments },
+    { key: 'riskIssues', label: 'Risk / issues', param: health.riskIssues },
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+      <div className="bg-gray-800 rounded-lg p-4 lg:p-6 max-w-md w-full border border-gray-700 my-8">
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-xs uppercase tracking-wide text-gray-400">Project health</p>
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+        <div className="flex items-center gap-2 mb-4">
+          <span
+            className="w-2.5 h-2.5 rounded-full"
+            style={{ backgroundColor: RAG_DOT_COLOR[health.overall] }}
+          />
+          <h3 className="text-lg font-semibold text-white">{project.name} &middot; {RAG_LABEL[health.overall]}</h3>
+        </div>
+
+        <div className="divide-y divide-gray-700">
+          {rows.map((row) => (
+            <div key={row.key} className="flex items-center justify-between py-2 gap-3">
+              <span className="text-sm text-gray-300">{row.label}</span>
+              {row.param.status === 'insufficient_data' ? (
+                <span className="text-xs text-gray-500 text-right">{RAG_LABEL.insufficient_data}</span>
+              ) : (
+                <span className="flex items-center gap-2 text-xs text-right" style={{ color: RAG_DOT_COLOR[row.param.status] }}>
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: RAG_DOT_COLOR[row.param.status] }} />
+                  <span>{row.param.label} &middot; {row.param.detail}</span>
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-700">
+          <span className="text-xs text-gray-400">Health score</span>
+          <span className="text-sm font-semibold text-white">{health.score === null ? '—' : `${health.score} / 100`}</span>
+        </div>
+
+        <p className="text-xs text-gray-400 mt-3 leading-relaxed">{health.explanation}</p>
+      </div>
+    </div>
+  );
+};
+
 const ADD_NEW_SUBCONTRACTOR = '__add_new__';
 
 const EditExpenseModal: React.FC<{
@@ -1073,6 +1141,31 @@ export const Projects: React.FC = () => {
   const { getProgressForProject } = useProjectProgress();
   const { projects, addProject, updateProject, deleteProject } = useProjects();
   const { expenses, deleteExpense, fetchReceiptImage, updateExpense } = useExpenses();
+  const { receivedByProject, subcontractorsByProject } = useProjectFinancials();
+  const [viewingHealthFor, setViewingHealthFor] = useState<Project | null>(null);
+
+  // Project Health is always calculated, never manually set - see
+  // src/utils/projectHealth.ts for the full ruleset per parameter.
+  const getProjectHealth = (project: Project): ProjectHealthResult => {
+    const totalSpent = getProjectExpenses(project.id);
+    const subs = subcontractorsByProject.get(project.id) ?? [];
+    const subFinancials = subs.map((sub) => ({
+      contractValue: sub.contractValue,
+      paid: expenses
+        .filter((e) => e.subcontractorId === sub.id)
+        .reduce((sum, e) => sum + e.amount, 0),
+    }));
+
+    return calculateProjectHealth({
+      budget: project.totalBudget,
+      totalSpent,
+      startDate: project.startDate,
+      endDate: project.endDate,
+      siteProgressPct: getProgressForProject(project.name),
+      received: receivedByProject.get(project.id) ?? 0,
+      subcontractors: subFinancials,
+    });
+  };
   const [loadingReceiptId, setLoadingReceiptId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -1779,15 +1872,25 @@ export const Projects: React.FC = () => {
         {projects.map((project) => {
           const totalExpenses = getProjectExpenses(project.id);
           const budgetPercentage = (totalExpenses / project.totalBudget) * 100;
-          
+          const health = getProjectHealth(project);
+
           return (
             <div key={project.id} className="bg-gray-800 rounded-lg p-4 lg:p-6 border border-gray-700 hover:border-gray-600 transition-colors">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <h3 className="text-base lg:text-lg font-semibold text-white">{project.name}</h3>
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs lg:text-sm font-medium text-white ${getStatusColor(project.status)}`}>
-                    {PROJECT_STATUSES.find(s => s.id === project.status)?.name}
-                  </span>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs lg:text-sm font-medium text-white ${getStatusColor(project.status)}`}>
+                      {PROJECT_STATUSES.find(s => s.id === project.status)?.name}
+                    </span>
+                    <button
+                      onClick={() => setViewingHealthFor(project)}
+                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium transition-opacity hover:opacity-80 ${RAG_BADGE_CLASSES[health.overall]}`}
+                      title="View project health"
+                    >
+                      {RAG_LABEL[health.overall]}
+                    </button>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   {isOwnerOf(project) && (
@@ -1949,6 +2052,14 @@ export const Projects: React.FC = () => {
           expenses={expenses}
           updateExpense={updateExpense}
           onClose={() => setViewingSummaryFor(null)}
+        />
+      )}
+
+      {viewingHealthFor && (
+        <ProjectHealthModal
+          project={viewingHealthFor}
+          health={getProjectHealth(viewingHealthFor)}
+          onClose={() => setViewingHealthFor(null)}
         />
       )}
     </div>
