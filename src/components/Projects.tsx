@@ -1894,23 +1894,8 @@ export const Projects: React.FC = () => {
 
           return (
             <div key={project.id} className="bg-gray-800 rounded-lg p-4 lg:p-6 border border-gray-700 hover:border-gray-600 transition-colors">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-base lg:text-lg font-semibold text-white">{project.name}</h3>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs lg:text-sm font-medium text-white ${getStatusColor(project.status)}`}>
-                      {PROJECT_STATUSES.find(s => s.id === project.status)?.name}
-                    </span>
-                    <button
-                      onClick={() => setViewingHealthFor(project)}
-                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs lg:text-sm font-medium border-0 leading-none whitespace-nowrap transition-opacity hover:opacity-80 ${RAG_BADGE_CLASSES[health.overall]}`}
-                      title="View project health"
-                    >
-                      {RAG_LABEL[health.overall]}
-                    </button>
-                  </div>
-                </div>
-                <div className="flex gap-2">
+              <div className="mb-4">
+                <div className="flex items-center justify-end gap-2 mb-2">
                   {isOwnerOf(project) && (
                     <>
                       <button
@@ -1964,6 +1949,21 @@ export const Projects: React.FC = () => {
                       <Trash2 className="h-4 w-4" />
                     </button>
                   )}
+                </div>
+                <div>
+                  <h3 className="text-base lg:text-lg font-semibold text-white">{project.name}</h3>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs lg:text-sm font-medium text-white ${getStatusColor(project.status)}`}>
+                      {PROJECT_STATUSES.find(s => s.id === project.status)?.name}
+                    </span>
+                    <button
+                      onClick={() => setViewingHealthFor(project)}
+                      className={`inline-flex items-center appearance-none px-2 py-1 rounded-full text-xs lg:text-sm font-medium border-0 leading-none whitespace-nowrap transition-opacity hover:opacity-80 ${RAG_BADGE_CLASSES[health.overall]}`}
+                      title="View project health"
+                    >
+                      {RAG_LABEL[health.overall]}
+                    </button>
+                  </div>
                 </div>
               </div>
 
