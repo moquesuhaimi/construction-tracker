@@ -1903,34 +1903,34 @@ export const Projects: React.FC = () => {
                         className="text-gray-400 hover:text-yellow-500 transition-colors"
                         title="Manage Team"
                       >
-                        <Users className="h-4 w-4" />
+                        <Users className="h-5 w-5 lg:h-4 lg:w-4" />
                       </button>
                       <button
                         onClick={() => setManagingCashFor(project)}
                         className="text-gray-400 hover:text-yellow-500 transition-colors"
                         title="Cash Flow"
                       >
-                        <Wallet className="h-4 w-4" />
+                        <Wallet className="h-5 w-5 lg:h-4 lg:w-4" />
                       </button>
                       <button
                         onClick={() => setManagingPaymentsFor(project)}
                         className="text-gray-400 hover:text-yellow-500 transition-colors"
                         title="Payments"
                       >
-                        <Landmark className="h-4 w-4" />
+                        <Landmark className="h-5 w-5 lg:h-4 lg:w-4" />
                       </button>
                       <button
                         onClick={() => setViewingSummaryFor(project)}
                         className="text-gray-400 hover:text-yellow-500 transition-colors"
                         title="Summary"
                       >
-                        <BarChart3 className="h-4 w-4" />
+                        <BarChart3 className="h-5 w-5 lg:h-4 lg:w-4" />
                       </button>
                       <button
                         onClick={() => handleEdit(project)}
                         className="text-gray-400 hover:text-yellow-500 transition-colors"
                       >
-                        <Edit2 className="h-4 w-4" />
+                        <Edit2 className="h-5 w-5 lg:h-4 lg:w-4" />
                       </button>
                     </>
                   )}
@@ -1939,14 +1939,14 @@ export const Projects: React.FC = () => {
                     className="text-gray-400 hover:text-blue-500 transition-colors"
                     title="View Expenses"
                   >
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-5 w-5 lg:h-4 lg:w-4" />
                   </button>
                   {isOwnerOf(project) && (
                     <button
                       onClick={() => handleDelete(project)}
                       className="text-gray-400 hover:text-red-500 transition-colors"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-5 w-5 lg:h-4 lg:w-4" />
                     </button>
                   )}
                 </div>
@@ -1958,7 +1958,7 @@ export const Projects: React.FC = () => {
                     </span>
                     <button
                       onClick={() => setViewingHealthFor(project)}
-                      className={`inline-flex items-center appearance-none px-2 py-1 rounded-full text-xs lg:text-sm font-medium border-0 leading-none whitespace-nowrap transition-opacity hover:opacity-80 ${RAG_BADGE_CLASSES[health.overall]}`}
+                      className={`inline-flex items-center appearance-none px-2 py-1 rounded-full text-xs lg:text-sm font-medium border-0 whitespace-nowrap transition-opacity hover:opacity-80 ${RAG_BADGE_CLASSES[health.overall]}`}
                       title="View project health"
                     >
                       {RAG_LABEL[health.overall]}
