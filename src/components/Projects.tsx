@@ -1956,13 +1956,16 @@ export const Projects: React.FC = () => {
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs lg:text-sm font-medium text-white ${getStatusColor(project.status)}`}>
                       {PROJECT_STATUSES.find(s => s.id === project.status)?.name}
                     </span>
-                    <button
+                    <span
                       onClick={() => setViewingHealthFor(project)}
-                      className={`inline-flex items-center appearance-none px-2 py-1 rounded-full text-xs lg:text-sm font-medium border-0 whitespace-nowrap transition-opacity hover:opacity-80 ${RAG_BADGE_CLASSES[health.overall]}`}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setViewingHealthFor(project); }}
+                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs lg:text-sm font-medium cursor-pointer hover:opacity-80 transition-opacity ${RAG_BADGE_CLASSES[health.overall]}`}
                       title="View project health"
                     >
                       {RAG_LABEL[health.overall]}
-                    </button>
+                    </span>
                   </div>
                 </div>
               </div>
