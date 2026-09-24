@@ -7,7 +7,7 @@ export interface Project {
   totalExpenses: number;
   startDate: string;
   endDate?: string;
-  status: 'active' | 'completed' | 'on-hold';
+  status: 'active' | 'completed' | 'on-hold' | 'payment-due';
   createdAt: string;
 }
 

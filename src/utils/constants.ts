@@ -15,6 +15,7 @@ export const EXPENSE_CATEGORIES = [
 
 export const PROJECT_STATUSES = [
   { id: 'active', name: 'Active', color: 'bg-green-500' },
+  { id: 'outstanding', name: 'Outstanding', color: 'bg-orange-500' },
   { id: 'completed', name: 'Completed', color: 'bg-blue-500' },
   { id: 'on-hold', name: 'On Hold', color: 'bg-yellow-500' },
 ];
