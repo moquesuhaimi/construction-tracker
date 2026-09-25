@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BarChart3, TrendingUp, TrendingDown, DollarSign, Calendar } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, DollarSign, Calendar, PiggyBank } from 'lucide-react';
 import { useExpenses } from '../hooks/useExpenses';
 import { useProjects } from '../hooks/useProjects';
 import { useUser } from '../hooks/useUser';
@@ -36,6 +36,20 @@ export const Dashboard: React.FC = () => {
   const categoryExpenses = getCategoryExpenses();
   const recentExpenses = getRecentExpenses();
   const budgetUsage = totalBudget > 0 ? (totalExpenses / totalBudget) * 100 : 0;
+
+  // Project Profit Summary - only completed projects, since profit is the
+  // actual final number (budget minus actual spend), not a forecast.
+  const completedProjects = projects
+    .filter((p) => p.status === 'completed')
+    .map((p) => ({
+      ...p,
+      profit: p.totalBudget - p.totalExpenses,
+      marginPct: p.totalBudget > 0 ? ((p.totalBudget - p.totalExpenses) / p.totalBudget) * 100 : 0,
+    }))
+    .sort((a, b) => b.profit - a.profit);
+  const totalCompletedBudget = completedProjects.reduce((sum, p) => sum + p.totalBudget, 0);
+  const totalProfit = completedProjects.reduce((sum, p) => sum + p.profit, 0);
+  const overallMarginPct = totalCompletedBudget > 0 ? (totalProfit / totalCompletedBudget) * 100 : 0;
 
   return (
     <div className="space-y-6">
@@ -193,6 +207,41 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Project Profit Summary - only shown once a project is marked Completed */}
+      {completedProjects.length > 0 && (
+        <div className="bg-gray-800 rounded-lg p-4 lg:p-6 border border-gray-700">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base lg:text-lg font-semibold text-white">Project Profit Summary</h3>
+            <div className="flex items-center gap-2">
+              <div className={`p-2 rounded-full flex-shrink-0 ${totalProfit >= 0 ? 'bg-green-500 bg-opacity-20' : 'bg-red-500 bg-opacity-20'}`}>
+                <PiggyBank className={`h-4 w-4 ${totalProfit >= 0 ? 'text-green-500' : 'text-red-500'}`} />
+              </div>
+              <div className="text-right">
+                <p className={`text-base lg:text-lg font-bold ${totalProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  ${totalProfit.toLocaleString()} <span className="text-xs lg:text-sm font-medium">({overallMarginPct.toFixed(1)}%)</span>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {completedProjects.map((project) => (
+              <div key={project.id} className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm lg:text-base text-gray-300">{project.name}</p>
+                  <p className="text-xs text-gray-500">
+                    ${project.totalBudget.toLocaleString()} budget − ${project.totalExpenses.toLocaleString()} spent
+                  </p>
+                </div>
+                <span className={`text-sm lg:text-base font-medium flex-shrink-0 ${project.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  ${project.profit.toLocaleString()} <span className="text-xs">({project.marginPct.toFixed(1)}%)</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
