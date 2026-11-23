@@ -1978,20 +1978,24 @@ export const Projects: React.FC = () => {
 
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <DollarSign className="h-4 w-4 text-gray-400" />
-                  <div className="flex-1">
+                  <Wallet className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
                     <div className="flex justify-between text-xs lg:text-sm">
                       <span className="text-gray-300">Budget</span>
                       <span className={`font-medium ${getBudgetStatus(project.totalBudget, totalExpenses)} text-xs lg:text-sm`}>
-                        {formatRM(totalExpenses)} / {formatRM(project.totalBudget)}
+                        {Math.round(budgetPercentage)}%
                       </span>
                     </div>
                     <div className="w-full bg-gray-700 rounded-full h-2 mt-1">
-                      <div 
+                      <div
                         className={`h-2 rounded-full ${budgetPercentage > 90 ? 'bg-red-500' : budgetPercentage > 70 ? 'bg-yellow-500' : 'bg-green-500'}`}
                         style={{ width: `${Math.min(budgetPercentage, 100)}%` }}
                       />
                     </div>
+                    <p className="mt-1 text-[11px] lg:text-xs text-gray-400 truncate">
+                      <span className={`font-medium ${getBudgetStatus(project.totalBudget, totalExpenses)}`}>{formatRM(totalExpenses)}</span>
+                      {' '}spent of {formatRM(project.totalBudget)}
+                    </p>
                   </div>
                 </div>
 
@@ -2000,8 +2004,8 @@ export const Projects: React.FC = () => {
                   if (siteProgress === null) return null;
                   return (
                     <div className="flex items-center gap-3">
-                      <HardHat className="h-4 w-4 text-gray-400" />
-                      <div className="flex-1">
+                      <HardHat className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
                         <div className="flex justify-between text-xs lg:text-sm">
                           <span className="text-gray-300">Site Progress</span>
                           <span className="font-medium text-blue-400 text-xs lg:text-sm">{siteProgress}%</span>

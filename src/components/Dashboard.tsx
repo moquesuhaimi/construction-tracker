@@ -6,7 +6,7 @@ import { useUser } from '../hooks/useUser';
 import { useAuth } from '../hooks/useAuth';
 import { useProjectFinancials } from '../hooks/useProjectFinancials';
 import { PeriodFilter } from '../types';
-import { PERIOD_FILTERS, EXPENSE_CATEGORIES } from '../utils/constants';
+import { PERIOD_FILTERS, EXPENSE_CATEGORIES, PROJECT_STATUSES } from '../utils/constants';
 import { formatDate } from '../utils/date';
 import { formatRM } from '../utils/money';
 
@@ -40,6 +40,13 @@ export const Dashboard: React.FC = () => {
   const selfFundedProjects = cashProjects
     .filter((p) => p.cashPosition < 0)
     .sort((a, b) => a.cashPosition - b.cashPosition);
+
+  // Running sites first (active / outstanding / on hold), then completed;
+  // within each group, the lowest cash position first.
+  const cashBySite = [...cashProjects].sort((a, b) => {
+    const rank = (st: string) => (st === 'completed' ? 1 : 0);
+    return rank(a.status) - rank(b.status) || a.cashPosition - b.cashPosition;
+  });
 
   const periodLabel = PERIOD_FILTERS.find((f) => f.id === selectedPeriod)?.name ?? '';
 
@@ -288,6 +295,46 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Cash position by site */}
+      {showCash && (
+        <div className="bg-gray-800 rounded-lg p-4 lg:p-6 border border-gray-700">
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div>
+              <h3 className="text-base lg:text-lg font-semibold text-white">Cash Position by Site</h3>
+              <p className="text-xs text-gray-500">Received − Spent for each project</p>
+            </div>
+            <span className={`text-sm lg:text-base font-bold whitespace-nowrap ${totalCashPosition < 0 ? 'text-red-500' : 'text-green-500'}`}>
+              {totalCashPosition < 0 ? `-${formatRM(Math.abs(totalCashPosition))}` : formatRM(totalCashPosition)}
+            </span>
+          </div>
+          <div className="divide-y divide-gray-700">
+            {cashBySite.map((p) => {
+              const status = PROJECT_STATUSES.find((st) => st.id === p.status);
+              return (
+                <div key={p.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <p className="text-sm lg:text-base text-gray-200 truncate">{p.name}</p>
+                      {status && (
+                        <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] lg:text-xs font-medium text-white ${status.color}`}>
+                          {status.name}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] lg:text-xs text-gray-500">
+                      Received {formatRM(p.received)} · Spent {formatRM(p.totalExpenses)}
+                    </p>
+                  </div>
+                  <span className={`text-sm lg:text-base font-semibold flex-shrink-0 whitespace-nowrap ${p.cashPosition < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                    {p.cashPosition < 0 ? `-${formatRM(Math.abs(p.cashPosition))}` : formatRM(p.cashPosition)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Project Profit Summary - only shown once a project is marked Completed */}
       {completedProjects.length > 0 && (
