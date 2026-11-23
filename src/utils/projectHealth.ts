@@ -86,7 +86,7 @@ const getClaimableFraction = (progressPct: number): number => {
 };
 
 const fmt = (n: number): string =>
-  `$${Math.round(n).toLocaleString()}`;
+  `RM${Math.round(n).toLocaleString('en-MY')}`;
 
 // A. Schedule Health (section 2) - Time-Based Schedule Health, not CPM/EVM.
 const calculateSchedule = (

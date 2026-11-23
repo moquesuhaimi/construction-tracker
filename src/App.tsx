@@ -8,6 +8,8 @@ import { Auth } from './components/Auth';
 import { useAuth } from './hooks/useAuth';
 import { useCashAdvanceNotifications } from './hooks/useCashAdvanceNotifications';
 import { TabType } from './types';
+import { formatDate } from './utils/date';
+import { formatRM } from './utils/money';
 
 function App() {
   const { session, loading, signOut } = useAuth();
@@ -77,10 +79,10 @@ function App() {
                 <Wallet className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm text-white font-medium">
-                    You received ${n.amount.toLocaleString()} petty cash for {n.projectName}
+                    You received {formatRM(n.amount)} petty cash for {n.projectName}
                   </p>
                   <p className="text-xs text-gray-400">
-                    {new Date(n.date).toLocaleDateString()}
+                    {formatDate(n.date)}
                     {n.notes ? ` - ${n.notes}` : ''}
                   </p>
                 </div>

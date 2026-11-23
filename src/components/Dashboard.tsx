@@ -1,16 +1,47 @@
 import React, { useState } from 'react';
-import { BarChart3, TrendingUp, TrendingDown, DollarSign, Calendar, PiggyBank } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, PiggyBank, Landmark, ArrowDownCircle, ArrowUpCircle, Hourglass, AlertTriangle } from 'lucide-react';
 import { useExpenses } from '../hooks/useExpenses';
 import { useProjects } from '../hooks/useProjects';
 import { useUser } from '../hooks/useUser';
+import { useAuth } from '../hooks/useAuth';
+import { useProjectFinancials } from '../hooks/useProjectFinancials';
 import { PeriodFilter } from '../types';
 import { PERIOD_FILTERS, EXPENSE_CATEGORIES } from '../utils/constants';
+import { formatDate } from '../utils/date';
+import { formatRM } from '../utils/money';
 
 export const Dashboard: React.FC = () => {
   const { expenses, getExpensesByPeriod, getTotalExpenses } = useExpenses();
   const { projects } = useProjects();
   const { user } = useUser();
+  const { user: authUser, isAdmin } = useAuth();
+  const { receivedByProject } = useProjectFinancials();
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilter>('month');
+
+  // Cash figures only cover projects whose client payments this user may see
+  // (owner or app admin) - otherwise "received" would read as 0 and the
+  // numbers would look worse than they are.
+  const cashProjects = projects
+    .filter((p) => p.ownerId === authUser?.id || isAdmin)
+    .map((p) => {
+      const received = receivedByProject.get(p.id) ?? 0;
+      return {
+        ...p,
+        received,
+        cashPosition: received - p.totalExpenses,
+        unpaid: Math.max(0, p.totalBudget - received),
+      };
+    });
+  const showCash = cashProjects.length > 0;
+  const totalReceived = cashProjects.reduce((sum, p) => sum + p.received, 0);
+  const totalSpent = cashProjects.reduce((sum, p) => sum + p.totalExpenses, 0);
+  const totalCashPosition = totalReceived - totalSpent;
+  const totalUnpaid = cashProjects.reduce((sum, p) => sum + p.unpaid, 0);
+  const selfFundedProjects = cashProjects
+    .filter((p) => p.cashPosition < 0)
+    .sort((a, b) => a.cashPosition - b.cashPosition);
+
+  const periodLabel = PERIOD_FILTERS.find((f) => f.id === selectedPeriod)?.name ?? '';
 
   const periodExpenses = getExpensesByPeriod(selectedPeriod);
   const totalExpenses = getTotalExpenses();
@@ -24,7 +55,7 @@ export const Dashboard: React.FC = () => {
         .reduce((sum, expense) => sum + expense.amount, 0);
       return { ...category, total };
     });
-    return categoryTotals.sort((a, b) => b.total - a.total);
+    return categoryTotals.filter((c) => c.total > 0).sort((a, b) => b.total - a.total);
   };
 
   const getRecentExpenses = () => {
@@ -34,6 +65,7 @@ export const Dashboard: React.FC = () => {
   };
 
   const categoryExpenses = getCategoryExpenses();
+  const periodTotal = periodExpenses.reduce((sum, e) => sum + e.amount, 0);
   const recentExpenses = getRecentExpenses();
   const budgetUsage = totalBudget > 0 ? (totalExpenses / totalBudget) * 100 : 0;
 
@@ -110,73 +142,156 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-gray-400 text-xs lg:text-sm">Total Expenses</p>
-              <p className="text-xl lg:text-2xl font-bold text-white">${totalExpenses.toLocaleString()}</p>
+      {/* Cash flow - all projects */}
+      {showCash && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div
+            className={`rounded-lg p-4 lg:p-6 border col-span-2 lg:col-span-1 ${
+              totalCashPosition < 0 ? 'bg-red-500 bg-opacity-10 border-red-500' : 'bg-gray-800 border-gray-700'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-gray-400 text-xs lg:text-sm">Cash Position</p>
+                <p className={`text-xl lg:text-2xl font-bold ${totalCashPosition < 0 ? 'text-red-500' : 'text-green-500'}`}>
+                  {totalCashPosition < 0 ? `-${formatRM(Math.abs(totalCashPosition))}` : formatRM(totalCashPosition)}
+                </p>
+                <p className="text-[11px] lg:text-xs text-gray-500 mt-1">Received − Spent, all projects</p>
+              </div>
+              <div className={`p-2 lg:p-3 rounded-full flex-shrink-0 ${totalCashPosition < 0 ? 'bg-red-500 bg-opacity-20' : 'bg-green-500 bg-opacity-20'}`}>
+                <Landmark className={`h-5 w-5 lg:h-6 lg:w-6 ${totalCashPosition < 0 ? 'text-red-500' : 'text-green-500'}`} />
+              </div>
             </div>
-            <div className="bg-yellow-500 bg-opacity-20 p-2 lg:p-3 rounded-full flex-shrink-0">
-              <DollarSign className="h-5 w-5 lg:h-6 lg:w-6 text-yellow-500" />
+          </div>
+
+          <div className="bg-gray-800 rounded-lg p-4 lg:p-6 border border-gray-700">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-gray-400 text-xs lg:text-sm">Received</p>
+                <p className="text-base lg:text-2xl font-bold text-white">{formatRM(totalReceived)}</p>
+                <p className="text-[11px] lg:text-xs text-gray-500 mt-1">Paid by clients</p>
+              </div>
+              <div className="bg-green-500 bg-opacity-20 p-2 lg:p-3 rounded-full flex-shrink-0 hidden sm:block">
+                <ArrowDownCircle className="h-5 w-5 lg:h-6 lg:w-6 text-green-500" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-800 rounded-lg p-4 lg:p-6 border border-gray-700">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-gray-400 text-xs lg:text-sm">Spent</p>
+                <p className="text-base lg:text-2xl font-bold text-white">{formatRM(totalSpent)}</p>
+                <p className="text-[11px] lg:text-xs text-gray-500 mt-1">All expenses</p>
+              </div>
+              <div className="bg-yellow-500 bg-opacity-20 p-2 lg:p-3 rounded-full flex-shrink-0 hidden sm:block">
+                <ArrowUpCircle className="h-5 w-5 lg:h-6 lg:w-6 text-yellow-500" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-800 rounded-lg p-4 lg:p-6 border border-gray-700 col-span-2 lg:col-span-1">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-gray-400 text-xs lg:text-sm">Belum Dibayar Client</p>
+                <p className="text-base lg:text-2xl font-bold text-white">{formatRM(totalUnpaid)}</p>
+                <p className="text-[11px] lg:text-xs text-gray-500 mt-1">Contract value − received</p>
+              </div>
+              <div className="bg-blue-500 bg-opacity-20 p-2 lg:p-3 rounded-full flex-shrink-0 hidden sm:block">
+                <Hourglass className="h-5 w-5 lg:h-6 lg:w-6 text-blue-500" />
+              </div>
             </div>
           </div>
         </div>
+      )}
 
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-gray-400 text-xs lg:text-sm">Active Projects</p>
-              <p className="text-xl lg:text-2xl font-bold text-white">{activeProjects}</p>
-            </div>
-            <div className="bg-green-500 bg-opacity-20 p-2 lg:p-3 rounded-full flex-shrink-0">
-              <BarChart3 className="h-5 w-5 lg:h-6 lg:w-6 text-green-500" />
-            </div>
+      {/* Secondary stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 lg:gap-4">
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border border-gray-700 flex items-center gap-3">
+          <BarChart3 className="h-4 w-4 text-green-500 flex-shrink-0 hidden sm:block" />
+          <div>
+            <p className="text-gray-400 text-[11px] lg:text-xs">Active Projects</p>
+            <p className="text-sm lg:text-lg font-semibold text-white">{activeProjects}</p>
           </div>
         </div>
-
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-gray-400 text-xs lg:text-sm">Total Budget</p>
-              <p className="text-xl lg:text-2xl font-bold text-white">${totalBudget.toLocaleString()}</p>
-            </div>
-            <div className="bg-blue-500 bg-opacity-20 p-2 lg:p-3 rounded-full flex-shrink-0">
-              <TrendingUp className="h-5 w-5 lg:h-6 lg:w-6 text-blue-500" />
-            </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border border-gray-700 flex items-center gap-3 col-span-2 sm:col-span-1 order-last sm:order-none">
+          <TrendingUp className="h-4 w-4 text-blue-500 flex-shrink-0 hidden sm:block" />
+          <div className="min-w-0">
+            <p className="text-gray-400 text-[11px] lg:text-xs">Total Budget</p>
+            <p className="text-sm lg:text-lg font-semibold text-white whitespace-nowrap">{formatRM(totalBudget)}</p>
           </div>
         </div>
-
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-gray-400 text-xs lg:text-sm">Budget Usage</p>
-              <p className="text-xl lg:text-2xl font-bold text-white">{budgetUsage.toFixed(1)}%</p>
-            </div>
-            <div className={`p-2 lg:p-3 rounded-full flex-shrink-0 ${budgetUsage > 80 ? 'bg-red-500 bg-opacity-20' : 'bg-green-500 bg-opacity-20'}`}>
-              {budgetUsage > 80 ? 
-                <TrendingDown className={`h-5 w-5 lg:h-6 lg:w-6 ${budgetUsage > 80 ? 'text-red-500' : 'text-green-500'}`} /> :
-                <TrendingUp className={`h-5 w-5 lg:h-6 lg:w-6 ${budgetUsage > 80 ? 'text-red-500' : 'text-green-500'}`} />
-              }
-            </div>
+        <div className="bg-gray-800 rounded-lg px-4 py-3 border border-gray-700 flex items-center gap-3">
+          {budgetUsage > 80 ? (
+            <TrendingDown className="h-4 w-4 text-red-500 flex-shrink-0 hidden sm:block" />
+          ) : (
+            <TrendingUp className="h-4 w-4 text-green-500 flex-shrink-0 hidden sm:block" />
+          )}
+          <div>
+            <p className="text-gray-400 text-[11px] lg:text-xs">Budget Usage</p>
+            <p className={`text-sm lg:text-lg font-semibold ${budgetUsage > 80 ? 'text-red-500' : 'text-white'}`}>
+              {budgetUsage.toFixed(1)}%
+            </p>
           </div>
         </div>
       </div>
+
+      {/* Projects running on own money */}
+      {showCash && selfFundedProjects.length > 0 && (
+        <div className="bg-gray-800 rounded-lg p-4 lg:p-6 border border-red-500 border-opacity-60">
+          <div className="flex items-center justify-between mb-1 gap-3">
+            <h3 className="text-base lg:text-lg font-semibold text-white flex items-center gap-2 min-w-0">
+              <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0" />
+              Projek Guna Duit Sendiri
+            </h3>
+            <span className="text-sm lg:text-base font-bold text-red-500 whitespace-nowrap">
+              -{formatRM(Math.abs(selfFundedProjects.reduce((sum, p) => sum + p.cashPosition, 0)))}
+            </span>
+          </div>
+          <p className="text-xs lg:text-sm text-gray-400 mb-4">
+            Belanja dah lebih dari bayaran client. Kejar bayaran untuk projek ni dulu.
+          </p>
+          <div className="space-y-3">
+            {selfFundedProjects.map((p) => (
+              <div key={p.id} className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm lg:text-base text-gray-200 truncate">{p.name}</p>
+                  <p className="text-xs text-gray-500">
+                    Received {formatRM(p.received)} · Spent {formatRM(p.totalExpenses)}
+                    {p.unpaid > 0 && <> · Belum dibayar {formatRM(p.unpaid)}</>}
+                  </p>
+                </div>
+                <span className="text-sm lg:text-base font-semibold text-red-400 flex-shrink-0 whitespace-nowrap">
+                  -{formatRM(Math.abs(p.cashPosition))}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Charts and Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Expenses by Category */}
         <div className="bg-gray-800 rounded-lg p-4 lg:p-6 border border-gray-700">
-          <h3 className="text-base lg:text-lg font-semibold text-white mb-4">Expenses by Category</h3>
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div>
+              <h3 className="text-base lg:text-lg font-semibold text-white">Expenses by Category</h3>
+              <p className="text-xs text-gray-500">{periodLabel}</p>
+            </div>
+            <span className="text-sm lg:text-base font-semibold text-yellow-500">{formatRM(periodTotal)}</span>
+          </div>
           <div className="space-y-3">
+            {categoryExpenses.length === 0 && (
+              <p className="text-gray-400 text-center py-8 text-sm lg:text-base">No expenses in this period</p>
+            )}
             {categoryExpenses.slice(0, 6).map((category) => (
               <div key={category.id} className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
                   <span className="text-sm lg:text-base text-gray-300">{category.name}</span>
                 </div>
-                <span className="text-sm lg:text-base text-white font-medium">${category.total.toLocaleString()}</span>
+                <span className="text-sm lg:text-base text-white font-medium">{formatRM(category.total)}</span>
               </div>
             ))}
           </div>
@@ -194,10 +309,10 @@ export const Dashboard: React.FC = () => {
                     <div>
                       <p className="text-sm lg:text-base text-gray-300 line-clamp-2">{expense.description}</p>
                       <p className="text-sm text-gray-400">
-                        {project?.name} • {new Date(expense.date).toLocaleDateString()}
+                        {project?.name} • {formatDate(expense.date)}
                       </p>
                     </div>
-                    <span className="text-sm lg:text-base text-white font-medium flex-shrink-0">${expense.amount.toLocaleString()}</span>
+                    <span className="text-sm lg:text-base text-white font-medium flex-shrink-0">{formatRM(expense.amount)}</span>
                   </div>
                 );
               })
@@ -219,7 +334,7 @@ export const Dashboard: React.FC = () => {
               </div>
               <div className="text-right">
                 <p className={`text-base lg:text-lg font-bold ${totalProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  ${totalProfit.toLocaleString()} <span className="text-xs lg:text-sm font-medium">({overallMarginPct.toFixed(1)}%)</span>
+                  {formatRM(totalProfit)} <span className="text-xs lg:text-sm font-medium">({overallMarginPct.toFixed(1)}%)</span>
                 </p>
               </div>
             </div>
@@ -231,11 +346,11 @@ export const Dashboard: React.FC = () => {
                 <div>
                   <p className="text-sm lg:text-base text-gray-300">{project.name}</p>
                   <p className="text-xs text-gray-500">
-                    ${project.totalBudget.toLocaleString()} budget − ${project.totalExpenses.toLocaleString()} spent
+                    {formatRM(project.totalBudget)} budget − {formatRM(project.totalExpenses)} spent
                   </p>
                 </div>
                 <span className={`text-sm lg:text-base font-medium flex-shrink-0 ${project.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  ${project.profit.toLocaleString()} <span className="text-xs">({project.marginPct.toFixed(1)}%)</span>
+                  {formatRM(project.profit)} <span className="text-xs">({project.marginPct.toFixed(1)}%)</span>
                 </span>
               </div>
             ))}

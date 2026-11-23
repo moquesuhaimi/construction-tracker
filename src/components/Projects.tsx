@@ -20,6 +20,8 @@ import {
   ParamHealth,
 } from '../utils/projectHealth';
 import * as XLSX from 'xlsx';
+import { formatDate } from '../utils/date';
+import { formatRM } from '../utils/money';
 
 const TeamModal: React.FC<{ project: Project; onClose: () => void }> = ({ project, onClose }) => {
   const { members, addMember, removeMember, setCashPositionAccess } = useProjectMembers(project.id);
@@ -173,15 +175,15 @@ const CashFlowModal: React.FC<{ project: Project; expenses: Expense[]; onClose: 
                   }`}
                 >
                   {balance > 0
-                    ? `Holding $${balance.toLocaleString()}`
+                    ? `Holding ${formatRM(balance)}`
                     : balance < 0
-                    ? `Owed $${Math.abs(balance).toLocaleString()}`
+                    ? `Owed ${formatRM(Math.abs(balance))}`
                     : 'Settled'}
                 </span>
               </div>
               <div className="flex gap-4 text-xs text-gray-400">
-                <span>Given: ${given.toLocaleString()}</span>
-                <span>Spent: ${spent.toLocaleString()}</span>
+                <span>Given: {formatRM(given)}</span>
+                <span>Spent: {formatRM(spent)}</span>
               </div>
             </div>
           ))}
@@ -198,10 +200,10 @@ const CashFlowModal: React.FC<{ project: Project; expenses: Expense[]; onClose: 
                   <div key={advance.id} className="flex items-center justify-between text-sm bg-gray-700 rounded-lg px-3 py-2">
                     <div>
                       <p className="text-white">
-                        ${advance.amount.toLocaleString()} to {member?.name || member?.email || 'a team member'}
+                        {formatRM(advance.amount)} to {member?.name || member?.email || 'a team member'}
                       </p>
                       <p className="text-xs text-gray-400">
-                        {new Date(advance.date).toLocaleDateString()}
+                        {formatDate(advance.date)}
                         {advance.notes ? ` - ${advance.notes}` : ''}
                       </p>
                     </div>
@@ -272,23 +274,23 @@ const PaymentsModal: React.FC<{ project: Project; totalExpenses: number; onClose
         <div className="grid grid-cols-3 gap-3 mb-6">
           <div className="bg-gray-700 rounded-lg px-3 py-3 text-center">
             <p className="text-xs text-gray-400 mb-1">Received</p>
-            <p className="text-white font-semibold text-sm lg:text-base">${totalReceived.toLocaleString()}</p>
+            <p className="text-white font-semibold text-sm lg:text-base">{formatRM(totalReceived)}</p>
           </div>
           <div className="bg-gray-700 rounded-lg px-3 py-3 text-center">
             <p className="text-xs text-gray-400 mb-1">Spent</p>
-            <p className="text-white font-semibold text-sm lg:text-base">${totalExpenses.toLocaleString()}</p>
+            <p className="text-white font-semibold text-sm lg:text-base">{formatRM(totalExpenses)}</p>
           </div>
           <div className="bg-gray-700 rounded-lg px-3 py-3 text-center">
             <p className="text-xs text-gray-400 mb-1">Cash Position</p>
             <p className={`font-semibold text-sm lg:text-base ${cashPosition < 0 ? 'text-red-500' : 'text-green-500'}`}>
-              {cashPosition < 0 ? `-$${Math.abs(cashPosition).toLocaleString()}` : `$${cashPosition.toLocaleString()}`}
+              {cashPosition < 0 ? `-${formatRM(Math.abs(cashPosition))}` : `${formatRM(cashPosition)}`}
             </p>
           </div>
         </div>
 
         {cashPosition < 0 && (
           <div className="bg-red-500 bg-opacity-10 border border-red-500 rounded-lg p-3 mb-6 text-sm text-red-400">
-            You've spent ${Math.abs(cashPosition).toLocaleString()} more than the client has paid so far. This
+            You've spent {formatRM(Math.abs(cashPosition))} more than the client has paid so far. This
             project is currently being funded out of pocket until the next payment comes in.
           </div>
         )}
@@ -339,9 +341,9 @@ const PaymentsModal: React.FC<{ project: Project; totalExpenses: number; onClose
             payments.map((payment) => (
               <div key={payment.id} className="flex items-center justify-between text-sm bg-gray-700 rounded-lg px-3 py-2">
                 <div>
-                  <p className="text-white">${payment.amount.toLocaleString()}</p>
+                  <p className="text-white">{formatRM(payment.amount)}</p>
                   <p className="text-xs text-gray-400">
-                    {new Date(payment.date).toLocaleDateString()}
+                    {formatDate(payment.date)}
                     {payment.description ? ` - ${payment.description}` : ''}
                   </p>
                 </div>
@@ -541,8 +543,8 @@ const SubcontractorRow: React.FC<{
                         {sub.name} <span className="text-gray-400 font-normal">({sub.trade})</span>
                       </p>
                       <p className="text-xs text-gray-400 mt-0.5">
-                        Subcontract Amount: ${sub.contractValue.toLocaleString()} · Paid: $
-                        {paid.toLocaleString()} · Balance: ${remaining.toLocaleString()}
+                        Subcontract Amount: {formatRM(sub.contractValue)} · Paid: 
+                        {formatRM(paid)} · Balance: {formatRM(remaining)}
                       </p>
                     </button>
                     <div className="flex items-center gap-3 flex-shrink-0 ml-2">
@@ -584,9 +586,9 @@ const SubcontractorRow: React.FC<{
                             >
                               <div>
                                 <span className="text-white">{p.description}</span>
-                                <span className="text-gray-500"> · {new Date(p.date).toLocaleDateString()}</span>
+                                <span className="text-gray-500"> · {formatDate(p.date)}</span>
                               </div>
-                              <span className="text-gray-300">${p.amount.toLocaleString()}</span>
+                              <span className="text-gray-300">{formatRM(p.amount)}</span>
                             </div>
                           ))}
                         </div>
@@ -622,7 +624,7 @@ const SubcontractorRow: React.FC<{
                               />
                               <span className="flex-1">
                                 <span className="text-white">{exp.description}</span>
-                                <span className="text-gray-400"> - ${exp.amount.toLocaleString()} - {new Date(exp.date).toLocaleDateString()}</span>
+                                <span className="text-gray-400"> - {formatRM(exp.amount)} - {formatDate(exp.date)}</span>
                               </span>
                             </label>
                           ))}
@@ -764,7 +766,7 @@ const SummaryModal: React.FC<{
                   <span className="text-white text-sm font-medium">{cat.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-white text-sm font-semibold">${cat.total.toLocaleString()}</span>
+                  <span className="text-white text-sm font-semibold">{formatRM(cat.total)}</span>
                   {cat.id === 'subcontractor' &&
                     (subcontractorExpanded ? (
                       <ChevronUp className="h-4 w-4 text-gray-400" />
@@ -795,7 +797,7 @@ const SummaryModal: React.FC<{
                   <span className="text-white text-sm font-medium">Subcontractor</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-400 text-sm">$0</span>
+                  <span className="text-gray-400 text-sm">RM0.00</span>
                   {subcontractorExpanded ? (
                     <ChevronUp className="h-4 w-4 text-gray-400" />
                   ) : (
@@ -812,7 +814,7 @@ const SummaryModal: React.FC<{
           {categoryTotals.length > 0 && (
             <div className="border-t border-gray-700 mt-3 pt-3 flex items-center justify-between">
               <span className="text-gray-300 text-sm font-medium">Total Spent</span>
-              <span className="text-white text-base font-bold">${totalSpent.toLocaleString()}</span>
+              <span className="text-white text-base font-bold">{formatRM(totalSpent)}</span>
             </div>
           )}
         </div>
@@ -1315,12 +1317,12 @@ export const Projects: React.FC = () => {
       // Data rows
       ...projectExpenses.map(expense => [
         project.name,
-        new Date(expense.date).toLocaleDateString(),
+        formatDate(expense.date),
         getCategoryName(expense.category),
         expense.description,
         expense.amount,
         expense.receipt || '',
-        new Date(expense.createdAt).toLocaleDateString()
+        formatDate(expense.createdAt)
       ]),
       // Summary rows
       [],
@@ -1330,7 +1332,7 @@ export const Projects: React.FC = () => {
       ['Remaining Budget', '', '', '', project.totalBudget - projectExpenses.reduce((sum, exp) => sum + exp.amount, 0)],
       ['Budget Usage %', '', '', '', `${((projectExpenses.reduce((sum, exp) => sum + exp.amount, 0) / project.totalBudget) * 100).toFixed(2)}%`],
       [],
-      ['Export Date', new Date().toLocaleDateString()],
+      ['Export Date', formatDate(new Date())],
       ['Total Records', projectExpenses.length]
     ];
 
@@ -1383,7 +1385,7 @@ export const Projects: React.FC = () => {
     // Create summary sheet
     const summaryData = [
       ['Project Summary Report'],
-      ['Generated on', new Date().toLocaleDateString()],
+      ['Generated on', formatDate(new Date())],
       [],
       ['Project Name', 'Status', 'Total Budget', 'Total Spent', 'Remaining Budget', 'Budget Usage %', 'Start Date', 'End Date'],
       ...projects.map(project => {
@@ -1423,17 +1425,17 @@ export const Projects: React.FC = () => {
     if (allExpenses.length > 0) {
       const expensesData = [
         ['All Expenses - Detailed Report'],
-        ['Generated on', new Date().toLocaleDateString()],
+        ['Generated on', formatDate(new Date())],
         [],
         ['Project Name', 'Date', 'Category', 'Description', 'Amount', 'Receipt Number', 'Created Date'],
         ...allExpenses.map(expense => [
           expense.projectName,
-          new Date(expense.date).toLocaleDateString(),
+          formatDate(expense.date),
           getCategoryName(expense.category),
           expense.description,
           expense.amount,
           expense.receipt || '',
-          new Date(expense.createdAt).toLocaleDateString()
+          formatDate(expense.createdAt)
         ])
       ];
 
@@ -1498,16 +1500,16 @@ export const Projects: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <p className="text-gray-400 text-xs lg:text-sm">Project Value</p>
-              <p className="text-xl lg:text-2xl font-bold text-white">${project.totalBudget.toLocaleString()}</p>
+              <p className="text-xl lg:text-2xl font-bold text-white">{formatRM(project.totalBudget)}</p>
             </div>
             <div>
               <p className="text-gray-400 text-xs lg:text-sm">Total Spent</p>
-              <p className="text-xl lg:text-2xl font-bold text-white">${totalExpenses.toLocaleString()}</p>
+              <p className="text-xl lg:text-2xl font-bold text-white">{formatRM(totalExpenses)}</p>
             </div>
             <div>
               <p className="text-gray-400 text-xs lg:text-sm">Profit Projection</p>
               <p className={`text-xl lg:text-2xl font-bold ${getBudgetStatus(project.totalBudget, totalExpenses)}`}>
-                ${(project.totalBudget - totalExpenses).toLocaleString()}
+                {formatRM((project.totalBudget - totalExpenses))}
               </p>
             </div>
           </div>
@@ -1520,7 +1522,7 @@ export const Projects: React.FC = () => {
                   <Landmark className="h-3.5 w-3.5" />
                   Cash Position (Received - Spent)
                 </p>
-                <p className="text-xs text-gray-500 mt-0.5">Received: ${viewingProjectReceived.toLocaleString()}</p>
+                <p className="text-xs text-gray-500 mt-0.5">Received: {formatRM(viewingProjectReceived)}</p>
               </div>
               <p
                 className={`text-lg lg:text-xl font-bold ${
@@ -1528,8 +1530,8 @@ export const Projects: React.FC = () => {
                 }`}
               >
                 {viewingProjectReceived - totalExpenses < 0
-                  ? `-$${Math.abs(viewingProjectReceived - totalExpenses).toLocaleString()}`
-                  : `$${(viewingProjectReceived - totalExpenses).toLocaleString()}`}
+                  ? `-${formatRM(Math.abs(viewingProjectReceived - totalExpenses))}`
+                  : `${formatRM((viewingProjectReceived - totalExpenses))}`}
               </p>
             </div>
           )}
@@ -1553,7 +1555,7 @@ export const Projects: React.FC = () => {
                     My Petty Cash Balance
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Given: ${myGiven.toLocaleString()} · Spent: ${mySpent.toLocaleString()}
+                    Given: {formatRM(myGiven)} · Spent: {formatRM(mySpent)}
                   </p>
                 </div>
                 <p
@@ -1562,9 +1564,9 @@ export const Projects: React.FC = () => {
                   }`}
                 >
                   {myBalance > 0
-                    ? `Holding $${myBalance.toLocaleString()}`
+                    ? `Holding ${formatRM(myBalance)}`
                     : myBalance < 0
-                    ? `Owed $${Math.abs(myBalance).toLocaleString()}`
+                    ? `Owed ${formatRM(Math.abs(myBalance))}`
                     : 'Settled'}
                 </p>
               </div>
@@ -1658,7 +1660,7 @@ export const Projects: React.FC = () => {
                           {getCategoryName(expense.category)}
                         </span>
                         <span className="text-gray-400 text-xs lg:text-sm">
-                          {new Date(expense.date).toLocaleDateString()}
+                          {formatDate(expense.date)}
                         </span>
                         {expense.receipt && (
                           <span className="text-gray-400 text-xs lg:text-sm hidden sm:inline">
@@ -1668,11 +1670,11 @@ export const Projects: React.FC = () => {
                       </div>
                       <h4 className="text-white font-medium mb-1 text-sm lg:text-base">{expense.description}</h4>
                       <p className="text-gray-400 text-xs lg:text-sm">
-                        Added by {expense.userName || 'a team member'} on {new Date(expense.createdAt).toLocaleDateString()}
+                        Added by {expense.userName || 'a team member'} on {formatDate(expense.createdAt)}
                       </p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-lg lg:text-2xl font-bold text-white">${expense.amount.toLocaleString()}</p>
+                      <p className="text-lg lg:text-2xl font-bold text-white">{formatRM(expense.amount)}</p>
                       <div className="flex justify-end gap-1 mt-2">
                         {(expense.userId === user?.id || isOwnerOf(project)) && (
                           <button
@@ -1981,7 +1983,7 @@ export const Projects: React.FC = () => {
                     <div className="flex justify-between text-xs lg:text-sm">
                       <span className="text-gray-300">Budget</span>
                       <span className={`font-medium ${getBudgetStatus(project.totalBudget, totalExpenses)} text-xs lg:text-sm`}>
-                        ${totalExpenses.toLocaleString()} / ${project.totalBudget.toLocaleString()}
+                        {formatRM(totalExpenses)} / {formatRM(project.totalBudget)}
                       </span>
                     </div>
                     <div className="w-full bg-gray-700 rounded-full h-2 mt-1">
@@ -2019,8 +2021,8 @@ export const Projects: React.FC = () => {
                   <div className="flex items-center gap-3">
                     <Calendar className="h-4 w-4 text-gray-400" />
                     <span className="text-gray-300 text-xs lg:text-sm">
-                      {new Date(project.startDate).toLocaleDateString()}
-                      {project.endDate && ` - ${new Date(project.endDate).toLocaleDateString()}`}
+                      {formatDate(project.startDate)}
+                      {project.endDate && ` - ${formatDate(project.endDate)}`}
                     </span>
                   </div>
                 )}

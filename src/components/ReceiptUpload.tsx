@@ -329,7 +329,7 @@ export const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onReceiptProcessed
                   {extractedData.amount && (
                     <div className="flex justify-between">
                       <span className="text-gray-300">Amount:</span>
-                      <span className="text-white font-medium">${extractedData.amount.toFixed(2)}</span>
+                      <span className="text-white font-medium">RM{extractedData.amount.toFixed(2)}</span>
                     </div>
                   )}
                   {extractedData.receiptNumber && (

@@ -8,6 +8,7 @@ import { useSubcontractors } from '../hooks/useSubcontractors';
 import { useAuth } from '../hooks/useAuth';
 import { EXPENSE_CATEGORIES, SUBCONTRACTOR_TRADES } from '../utils/constants';
 import { ReceiptUpload } from './ReceiptUpload';
+import { formatRM } from '../utils/money';
 
 type Mode = 'expense' | 'petty-cash';
 const ADD_NEW_SUBCONTRACTOR = '__add_new__';
@@ -360,18 +361,18 @@ export const AddExpense: React.FC = () => {
                       <p className="flex items-center gap-2 font-medium">
                         <Wallet className="h-4 w-4" />
                         {myFloatGiven > 0
-                          ? `This is $${Math.abs(myBalanceAfterThis).toLocaleString()} more than the petty cash you were given`
+                          ? `This is ${formatRM(Math.abs(myBalanceAfterThis))} more than the petty cash you were given`
                           : `You haven't been given any petty cash for this project yet`}
                       </p>
                       <p className="mt-1 text-xs">
-                        That ${Math.abs(myBalanceAfterThis).toLocaleString()} will be recorded as paid from your own
+                        That {formatRM(Math.abs(myBalanceAfterThis))} will be recorded as paid from your own
                         pocket - the project will owe it back to you. The owner can see this under Cash Flow.
                       </p>
                     </>
                   ) : (
                     <p className="flex items-center gap-2 font-medium">
                       <Wallet className="h-4 w-4" />
-                      After this, you'll still have ${myBalanceAfterThis.toLocaleString()} of petty cash left for this
+                      After this, you'll still have {formatRM(myBalanceAfterThis)} of petty cash left for this
                       project
                     </p>
                   )}
