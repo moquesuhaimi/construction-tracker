@@ -38,7 +38,8 @@ const fromRow = (row: ExpenseRow): Expense => {
     projectId: row.project_id,
     userId: row.user_id,
     userName: profile?.name,
-    category: row.category,
+    // 'Tools' and 'Equipment' are now one category ('Tools & Equipment').
+    category: row.category === 'tools' ? 'equipment' : row.category,
     description: row.description,
     amount: Number(row.amount),
     date: row.date,

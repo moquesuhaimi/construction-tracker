@@ -1,11 +1,12 @@
 export const EXPENSE_CATEGORIES = [
   { id: 'materials', name: 'Materials', icon: 'Package' },
   { id: 'labor', name: 'Labor', icon: 'Users' },
-  { id: 'equipment', name: 'Equipment', icon: 'Truck' },
+  { id: 'salary', name: 'Salary', icon: 'Wallet' },
+  // 'tools' was merged into this one; old 'tools' expenses are shown here too.
+  { id: 'equipment', name: 'Tools & Equipment', icon: 'Truck' },
   { id: 'permits', name: 'Permits', icon: 'FileCheck' },
   { id: 'utilities', name: 'Utilities', icon: 'Zap' },
   { id: 'transportation', name: 'Transportation', icon: 'Car' },
-  { id: 'tools', name: 'Tools', icon: 'Wrench' },
   { id: 'safety', name: 'Safety', icon: 'Shield' },
   { id: 'rental', name: 'Rental', icon: 'Home' },
   { id: 'insurance', name: 'Insurance', icon: 'FileText' },
