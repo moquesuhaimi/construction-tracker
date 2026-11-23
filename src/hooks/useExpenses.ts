@@ -2,6 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { Expense, PeriodFilter } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
+import {
+  isInlineReceipt,
+  removeStoredReceipt,
+  resolveReceiptUrl,
+  uploadReceiptDataUrl,
+} from '../lib/receipts';
 
 type ExpenseRow = {
   id: string;
@@ -89,7 +95,8 @@ export const useExpenses = () => {
       return null;
     }
 
-    return (data as { receipt_image: string | null }).receipt_image ?? null;
+    // New receipts are a pointer to Supabase Storage; older ones are base64.
+    return resolveReceiptUrl((data as { receipt_image: string | null }).receipt_image ?? null);
   }, []);
 
   useEffect(() => {
@@ -98,6 +105,11 @@ export const useExpenses = () => {
 
   const addExpense = async (expense: Omit<Expense, 'id' | 'createdAt' | 'userId' | 'userName'>) => {
     if (!user) throw new Error('You must be signed in.');
+
+    // Photos go to Storage; only a short pointer is saved in the row.
+    const receiptImage = isInlineReceipt(expense.receiptImage)
+      ? await uploadReceiptDataUrl(expense.projectId, expense.receiptImage)
+      : expense.receiptImage || null;
 
     const { data, error } = await supabase
       .from('expenses')
@@ -109,19 +121,29 @@ export const useExpenses = () => {
         amount: expense.amount,
         date: expense.date,
         receipt: expense.receipt || null,
-        receipt_image: expense.receiptImage || null,
+        receipt_image: receiptImage,
         subcontractor_id: expense.subcontractorId || null,
       })
       .select('*, profiles ( name )')
       .single();
 
-    if (error || !data) throw error ?? new Error('Failed to add expense');
+    if (error || !data) {
+      await removeStoredReceipt(receiptImage);
+      throw error ?? new Error('Failed to add expense');
+    }
 
     await fetchExpenses();
     return fromRow(data as ExpenseRow);
   };
 
   const updateExpense = async (id: string, updates: Partial<Expense>) => {
+    let receiptImage = updates.receiptImage;
+    if (isInlineReceipt(receiptImage)) {
+      const projectId =
+        updates.projectId ?? expenses.find((expense) => expense.id === id)?.projectId;
+      if (projectId) receiptImage = await uploadReceiptDataUrl(projectId, receiptImage);
+    }
+
     const { error } = await supabase
       .from('expenses')
       .update({
@@ -130,7 +152,7 @@ export const useExpenses = () => {
         ...(updates.amount !== undefined && { amount: updates.amount }),
         ...(updates.date !== undefined && { date: updates.date }),
         ...(updates.receipt !== undefined && { receipt: updates.receipt || null }),
-        ...(updates.receiptImage !== undefined && { receipt_image: updates.receiptImage || null }),
+        ...(receiptImage !== undefined && { receipt_image: receiptImage || null }),
         ...(updates.subcontractorId !== undefined && { subcontractor_id: updates.subcontractorId || null }),
       })
       .eq('id', id);
@@ -141,8 +163,17 @@ export const useExpenses = () => {
   };
 
   const deleteExpense = async (id: string) => {
+    const { data: existing } = await supabase
+      .from('expenses')
+      .select('receipt_image')
+      .eq('id', id)
+      .maybeSingle();
+
     const { error } = await supabase.from('expenses').delete().eq('id', id);
     if (error) throw error;
+
+    // Clean up the photo file too, so Storage doesn't fill with orphans.
+    await removeStoredReceipt((existing as { receipt_image: string | null } | null)?.receipt_image);
     await fetchExpenses();
   };
 

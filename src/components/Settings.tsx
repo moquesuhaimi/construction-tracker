@@ -3,6 +3,7 @@ import { User, Save, LogOut, Camera, Upload, X } from 'lucide-react';
 import { useUser } from '../hooks/useUser';
 import { useAuth } from '../hooks/useAuth';
 import { User as UserType } from '../types';
+import { ReceiptMigration } from './ReceiptMigration';
 
 export const Settings: React.FC = () => {
   const { user, updateUser } = useUser();
@@ -269,6 +270,8 @@ export const Settings: React.FC = () => {
         </p>
       </div>
 
+      <ReceiptMigration />
+
       {/* App Information */}
       <div className="bg-gray-800 rounded-lg p-4 lg:p-6 border border-gray-700">
         <h3 className="text-base lg:text-lg font-semibold text-white mb-4">App Information</h3>
@@ -288,7 +291,7 @@ export const Settings: React.FC = () => {
           </div>
           <div className="flex justify-between">
             <span className="text-gray-400">Data Storage</span>
-            <span className="text-white">Supabase (Cloud)</span>
+            <span className="text-white">Supabase (Cloud) + File Storage for receipts</span>
           </div>
         </div>
       </div>
