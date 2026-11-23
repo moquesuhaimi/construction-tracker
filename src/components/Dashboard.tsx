@@ -144,64 +144,30 @@ export const Dashboard: React.FC = () => {
 
       {/* Cash flow - all projects */}
       {showCash && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div
-            className={`rounded-lg p-4 lg:p-6 border col-span-2 lg:col-span-1 ${
-              totalCashPosition < 0 ? 'bg-red-500 bg-opacity-10 border-red-500' : 'bg-gray-800 border-gray-700'
-            }`}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-gray-400 text-xs lg:text-sm">Cash Position</p>
-                <p className={`text-xl lg:text-2xl font-bold ${totalCashPosition < 0 ? 'text-red-500' : 'text-green-500'}`}>
-                  {totalCashPosition < 0 ? `-${formatRM(Math.abs(totalCashPosition))}` : formatRM(totalCashPosition)}
-                </p>
-                <p className="text-[11px] lg:text-xs text-gray-500 mt-1">Received − Spent, all projects</p>
-              </div>
-              <div className={`p-2 lg:p-3 rounded-full flex-shrink-0 ${totalCashPosition < 0 ? 'bg-red-500 bg-opacity-20' : 'bg-green-500 bg-opacity-20'}`}>
-                <Landmark className={`h-5 w-5 lg:h-6 lg:w-6 ${totalCashPosition < 0 ? 'text-red-500' : 'text-green-500'}`} />
-              </div>
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          {[
+            {
+              label: 'Cash Position',
+              value: totalCashPosition < 0 ? `-${formatRM(Math.abs(totalCashPosition))}` : formatRM(totalCashPosition),
+              hint: 'Received − Spent, all projects',
+              Icon: Landmark,
+              tone: totalCashPosition < 0 ? 'text-red-500' : 'text-green-500',
+              valueTone: totalCashPosition < 0 ? 'text-red-500' : 'text-green-500',
+              card: totalCashPosition < 0 ? 'bg-red-500 bg-opacity-10 border-red-500' : 'bg-gray-800 border-gray-700',
+            },
+            { label: 'Received', value: formatRM(totalReceived), hint: 'Paid by clients', Icon: ArrowDownCircle, tone: 'text-green-500', valueTone: 'text-white', card: 'bg-gray-800 border-gray-700' },
+            { label: 'Spent', value: formatRM(totalSpent), hint: 'All expenses', Icon: ArrowUpCircle, tone: 'text-yellow-500', valueTone: 'text-white', card: 'bg-gray-800 border-gray-700' },
+            { label: 'Owed by Clients', value: formatRM(totalUnpaid), hint: 'Contract value − received', Icon: Hourglass, tone: 'text-blue-500', valueTone: 'text-white', card: 'bg-gray-800 border-gray-700' },
+          ].map(({ label, value, hint, Icon, tone, valueTone, card }) => (
+            <div key={label} className={`rounded-lg p-4 lg:p-5 border min-w-0 ${card}`}>
+              <p className="flex items-center gap-2 text-gray-400 text-xs lg:text-sm">
+                <Icon className={`h-4 w-4 flex-shrink-0 ${tone}`} />
+                {label}
+              </p>
+              <p className={`mt-2 text-lg lg:text-2xl font-bold whitespace-nowrap ${valueTone}`}>{value}</p>
+              <p className="text-[11px] lg:text-xs text-gray-500 mt-1">{hint}</p>
             </div>
-          </div>
-
-          <div className="bg-gray-800 rounded-lg p-4 lg:p-6 border border-gray-700">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-gray-400 text-xs lg:text-sm">Received</p>
-                <p className="text-base lg:text-2xl font-bold text-white">{formatRM(totalReceived)}</p>
-                <p className="text-[11px] lg:text-xs text-gray-500 mt-1">Paid by clients</p>
-              </div>
-              <div className="bg-green-500 bg-opacity-20 p-2 lg:p-3 rounded-full flex-shrink-0 hidden sm:block">
-                <ArrowDownCircle className="h-5 w-5 lg:h-6 lg:w-6 text-green-500" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-gray-800 rounded-lg p-4 lg:p-6 border border-gray-700">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-gray-400 text-xs lg:text-sm">Spent</p>
-                <p className="text-base lg:text-2xl font-bold text-white">{formatRM(totalSpent)}</p>
-                <p className="text-[11px] lg:text-xs text-gray-500 mt-1">All expenses</p>
-              </div>
-              <div className="bg-yellow-500 bg-opacity-20 p-2 lg:p-3 rounded-full flex-shrink-0 hidden sm:block">
-                <ArrowUpCircle className="h-5 w-5 lg:h-6 lg:w-6 text-yellow-500" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-gray-800 rounded-lg p-4 lg:p-6 border border-gray-700 col-span-2 lg:col-span-1">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-gray-400 text-xs lg:text-sm">Belum Dibayar Client</p>
-                <p className="text-base lg:text-2xl font-bold text-white">{formatRM(totalUnpaid)}</p>
-                <p className="text-[11px] lg:text-xs text-gray-500 mt-1">Contract value − received</p>
-              </div>
-              <div className="bg-blue-500 bg-opacity-20 p-2 lg:p-3 rounded-full flex-shrink-0 hidden sm:block">
-                <Hourglass className="h-5 w-5 lg:h-6 lg:w-6 text-blue-500" />
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
       )}
 
@@ -236,20 +202,20 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Projects running on own money */}
+      {/* Projects currently funded out of pocket */}
       {showCash && selfFundedProjects.length > 0 && (
         <div className="bg-gray-800 rounded-lg p-4 lg:p-6 border border-red-500 border-opacity-60">
           <div className="flex items-center justify-between mb-1 gap-3">
             <h3 className="text-base lg:text-lg font-semibold text-white flex items-center gap-2 min-w-0">
               <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0" />
-              Projek Guna Duit Sendiri
+              Self-Funded Projects
             </h3>
             <span className="text-sm lg:text-base font-bold text-red-500 whitespace-nowrap">
               -{formatRM(Math.abs(selfFundedProjects.reduce((sum, p) => sum + p.cashPosition, 0)))}
             </span>
           </div>
           <p className="text-xs lg:text-sm text-gray-400 mb-4">
-            Belanja dah lebih dari bayaran client. Kejar bayaran untuk projek ni dulu.
+            Spending is higher than what the client has paid. Chase payment on these first.
           </p>
           <div className="space-y-3">
             {selfFundedProjects.map((p) => (
@@ -258,7 +224,7 @@ export const Dashboard: React.FC = () => {
                   <p className="text-sm lg:text-base text-gray-200 truncate">{p.name}</p>
                   <p className="text-xs text-gray-500">
                     Received {formatRM(p.received)} · Spent {formatRM(p.totalExpenses)}
-                    {p.unpaid > 0 && <> · Belum dibayar {formatRM(p.unpaid)}</>}
+                    {p.unpaid > 0 && <> · Unpaid {formatRM(p.unpaid)}</>}
                   </p>
                 </div>
                 <span className="text-sm lg:text-base font-semibold text-red-400 flex-shrink-0 whitespace-nowrap">
